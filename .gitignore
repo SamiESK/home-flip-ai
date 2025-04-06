@@ -1,0 +1,23 @@
+# Ignore virtual environments
+/Lib/
+/lib/
+/venv/
+/env/
+/src/data/
+data
+home_flip_model.json
+/src/predictions.csv
+
+# Ignore Python bytecode
+*.pyc
+*.pyo
+__pycache__/
+
+# Ignore IDE and editor-specific files
+.vscode/
+.idea/
+
+# Ignore other potential temp files
+*.log
+*.swp
+*.bak
