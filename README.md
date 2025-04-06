@@ -17,23 +17,7 @@ An AI-powered tool for real estate investors to evaluate and discover profitable
 
 ---
 
-🛠️ Project Structure
-
-home-flip-ai/
-│
-├── run.py                 # Main entry point to run the tool
-├── backend/
-│   ├── main.py            # Core logic and AI pipeline
-│   ├── models/            # Trained model files (future)
-│   └── utils/             # Data cleaning, helpers, etc.
-│
-├── data/
-│   ├── raw/               # Raw historical data
-│   └── processed/         # Cleaned, usable datasets
-│
-├── scraper/               # (optional) Scraping scripts for new listings
-│
-└── README_HomeFlipperAI.txt    # You're reading it
+home-flip-ai/ ├── run.py # Main entry point to run the tool ├── backend/ │ ├── main.py # Core logic and AI pipeline │ ├── models/ # Trained model files (future) │ └── utils/ # Data cleaning, helpers, etc. ├── data/ │ ├── raw/ # Raw historical data │ └── processed/ # Cleaned, usable datasets ├── scraper/ # (optional) Scraping scripts for new listings └── README.md # You're reading it
 
 ---
 
