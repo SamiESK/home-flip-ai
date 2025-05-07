@@ -1,0 +1,59 @@
+.property-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  background: white;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.property-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.property-card.good-flip {
+  border-left: 4px solid #4CAF50;
+}
+
+.property-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.property-card__header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2em;
+}
+
+.good-flip-badge {
+  background: #4CAF50;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+.property-card__details {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.property-card__details p {
+  margin: 4px 0;
+}
+
+.property-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: #2196F3;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.property-link:hover {
+  text-decoration: underline;
+}

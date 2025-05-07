@@ -14,7 +14,7 @@ filename = f"data/HomeHarvest_{current_timestamp}.csv"  # Save inside 'data' fol
 # Fetch properties
 properties = scrape_property(
     location="San Diego, CA",
-    listing_type="sold",  # or 'for_sale', 'for_rent', 'pending'
+    listing_type="for_sale",  # or 'for_sale', 'for_rent', 'pending'
     past_days=30,  # Last 30 days
 )
 
