@@ -1,6 +1,38 @@
+/* frontend/src/components/PropertyList/PropertyList.css */
 .property-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-    padding: 20px;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.no-properties {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 1.2em;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border: 1px dashed #ccc;
+}
+
+/* Custom scrollbar */
+.property-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.property-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.property-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.property-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

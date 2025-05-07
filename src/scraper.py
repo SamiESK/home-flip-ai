@@ -1,34 +1,57 @@
+# src/scraper.py
 import os
 from homeharvest import scrape_property
 from datetime import datetime
-from tqdm import tqdm  # Import tqdm for the progress bar
+import pandas as pd
 
-# Ensure the 'data' directory exists
-if not os.path.exists('data'):
-    os.makedirs('data')
+def scrape_properties(zip_code, max_price):
+    """
+    Scrape properties from HomeHarvest based on zip code and max price.
+    
+    Args:
+        zip_code (str): The zip code to search in
+        max_price (int): Maximum price to filter properties
+        
+    Returns:
+        list: List of property dictionaries
+    """
+    # Ensure the 'data' directory exists
+    if not os.path.exists('data'):
+        os.makedirs('data')
 
-# Generate filename based on current timestamp
-current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = f"data/HomeHarvest_{current_timestamp}.csv"  # Save inside 'data' folder
+    # Generate filename based on current timestamp
+    current_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"data/HomeHarvest_{current_timestamp}.csv"
 
-# Fetch properties
-properties = scrape_property(
-    location="San Diego, CA",
-    listing_type="for_sale",  # or 'for_sale', 'for_rent', 'pending'
-    past_days=30,  # Last 30 days
-)
+    # Fetch properties with the provided parameters
+    properties = scrape_property(
+        location=f"{zip_code}",
+        listing_type="for_sale",
+        past_days=30
+    )
 
-# Set up a tqdm progress bar with a description and custom styling
-with tqdm(total=len(properties), desc="Scraping properties", ncols=100, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed} < {remaining}, {rate_fmt}]") as pbar:
-    for index, property in properties.iterrows():
-        # Process each property (or add your custom logic here)
-        # For example: (You can replace this with your actual property processing code)
-        # property['processed'] = some_processing_function(property)
+    # Convert max_price to integer
+    max_price = int(max_price)
 
-        # Update the progress bar
-        pbar.update(1)
+    # Filter the results after fetching
+    if max_price:
+        # Convert list_price to numeric, coercing errors to NaN
+        properties['list_price'] = pd.to_numeric(properties['list_price'], errors='coerce')
+        # Drop rows where list_price is NaN
+        properties = properties.dropna(subset=['list_price'])
+        # Filter by max_price
+        properties = properties[properties['list_price'] <= max_price]
 
-# Save to CSV
-properties.to_csv(filename, index=False)
-print(f"Number of properties: {len(properties)}")
-print(properties.head())
+    # Save to CSV
+    properties.to_csv(filename, index=False)
+    print(f"Number of properties: {len(properties)}")
+    print(properties.head())
+
+    # Convert DataFrame to list of dictionaries
+    properties_list = properties.to_dict('records')
+
+    return properties_list
+
+if __name__ == "__main__":
+    # Default values for command line usage
+    scrape_properties("92101", 1000000)
