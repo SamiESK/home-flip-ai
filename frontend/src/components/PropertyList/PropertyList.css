@@ -1,24 +1,45 @@
 /* frontend/src/components/PropertyList/PropertyList.css */
 .property-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   padding: 16px;
-  max-height: calc(100vh - 100px);
+  height: 100%;
   overflow-y: auto;
 }
 
-.no-properties {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-  font-size: 1.2em;
-  background: #f9f9f9;
+.properties-header {
+  background: #f5f5f5;
+  padding: 12px;
   border-radius: 8px;
-  border: 1px dashed #ccc;
+  margin-bottom: 16px;
+  font-weight: 500;
 }
 
-/* Custom scrollbar */
+.properties-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.property-wrapper {
+  width: 100%;
+}
+
+/* Debug styles */
+.property-wrapper {
+  border: 1px solid #eee;
+  padding: 8px;
+  border-radius: 8px;
+  background: white;
+}
+
+.property-list-container {
+  flex: 1;
+  overflow-y: auto;
+  background: white;
+  border: none;
+  padding-right: 8px;
+}
+
+/* Clean up scrollbar styling */
 .property-list::-webkit-scrollbar {
   width: 8px;
 }
@@ -29,10 +50,17 @@
 }
 
 .property-list::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #ccc;
   border-radius: 4px;
 }
 
 .property-list::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #999;
+}
+
+.no-properties {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-size: 14px;
 }

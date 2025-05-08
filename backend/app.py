@@ -93,32 +93,61 @@ def predict():
             return jsonify({'error': 'Request must be JSON'}), 400
 
         data = request.json
-        required_fields = ['price', 'sqft', 'beds', 'baths', 'days_on_market']
-        
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+        logger.info(f"Received prediction request with data: {data}")  # Add logging
 
-        # Import predictor
-        from src.predictor import predict_property
+        # Convert values to appropriate types
+        price = float(data.get('price', 0))
+        sqft = float(data.get('sqft', 0))
+        beds = int(data.get('beds', 0))
+        baths = float(data.get('baths', 0))
+        days_on_market = int(data.get('days_on_market', 0))
+
+        # Simple prediction logic (we can make this more sophisticated later)
+        # For now, let's use some basic rules
+        score = 0
+        reasons = []
+
+        # Price per sqft analysis
+        price_per_sqft = price / sqft if sqft > 0 else 0
+        if 100 <= price_per_sqft <= 200:
+            score += 30
+            reasons.append("Good price per square foot")
         
-        # Make prediction
-        is_good_flip, confidence = predict_property(
-            price=data['price'],
-            sqft=data['sqft'],
-            beds=data['beds'],
-            baths=data['baths'],
-            days_on_market=data['days_on_market']
-        )
+        # Days on market analysis
+        if days_on_market > 60:
+            score += 20
+            reasons.append("Property may be more negotiable due to longer market time")
         
+        # Bed/bath ratio analysis
+        if 1.5 <= beds/baths <= 2.5:
+            score += 20
+            reasons.append("Good bed to bath ratio")
+            
+        # Size analysis
+        if 1000 <= sqft <= 3000:
+            score += 30
+            reasons.append("Optimal property size for flipping")
+
+        # Calculate final prediction
+        is_good_flip = score >= 60
+        confidence = score  # Using score as confidence percentage
+
         return jsonify({
             'is_good_flip': is_good_flip,
-            'confidence': confidence
+            'confidence': confidence,
+            'reasons': reasons
         })
 
+    except ZeroDivisionError:
+        logger.error("Division by zero error in prediction")
+        return jsonify({
+            'is_good_flip': False,
+            'confidence': 0,
+            'reasons': ["Invalid property data"]
+        })
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

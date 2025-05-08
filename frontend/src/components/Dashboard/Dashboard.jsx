@@ -1,42 +1,14 @@
 // frontend/src/components/Dashboard/Dashboard.jsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import PropertyList from '../PropertyList/PropertyList';
 import PropertyFilter from '../PropertyFilter/PropertyFilter';
-import { fetchProperties } from '../../services/api';
+import MapView from '../MapView/MapView';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const [properties, setProperties] = React.useState([]);
   const [filters, setFilters] = React.useState({});
   const [selectedProperty, setSelectedProperty] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-
-  const loadProperties = async () => {
-    try {
-      setLoading(true);
-      const response = await fetchProperties();
-      console.log('API Response:', response);
-
-      if (response && response.properties) {
-        console.log('Setting properties:', response.properties);
-        setProperties(response.properties);
-      } else {
-        console.error('Invalid response format:', response);
-        setError('Invalid data format received');
-      }
-    } catch (error) {
-      console.error('Error loading properties:', error);
-      setError('Failed to load properties. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load properties when component mounts
-  React.useEffect(() => {
-    loadProperties();
-  }, []);
 
   const handleFilterChange = (filterName, value) => {
     console.log('Filter changed:', filterName, value);
@@ -46,85 +18,81 @@ const Dashboard = () => {
     }));
   };
 
-  const handlePropertySelect = (property) => {
+  const handlePropertiesLoaded = useCallback((newProperties) => {
+    console.log('Dashboard receiving properties:', {
+      hasProperties: !!newProperties,
+      isArray: Array.isArray(newProperties),
+      length: newProperties?.length,
+      sampleProperty: newProperties?.[0]
+    });
+
+    if (Array.isArray(newProperties) && newProperties.length > 0) {
+      setProperties(newProperties);
+    } else {
+      console.warn('Invalid or empty properties data received:', newProperties);
+      setProperties([]);
+    }
+  }, []);
+
+  const handlePropertySelect = useCallback((property) => {
     console.log('Selected property:', property);
     setSelectedProperty(property);
-  };
+  }, []);
 
   // Filter properties based on current filters
   const filteredProperties = React.useMemo(() => {
-    console.log('Filtering properties:', { properties, filters });
+    console.log('Filtering properties:', {
+      total: properties.length,
+      filters
+    });
     
-    if (!Array.isArray(properties)) {
-      console.warn('Properties is not an array:', properties);
-      return [];
-    }
+    if (!Array.isArray(properties)) return [];
     
     return properties.filter(property => {
-      // Zip code filter
-      if (filters.zipCode && property.zip_code !== filters.zipCode) {
-        return false;
+      if (filters.zipCode && property.zip_code !== filters.zipCode) return false;
+      if (filters.maxPrice) {
+        const maxPrice = Number(filters.maxPrice.replace(/,/g, ''));
+        if (property.list_price > maxPrice) return false;
       }
-
-      // Maximum price filter
-      if (filters.maxPrice && property.list_price > Number(filters.maxPrice.replace(/,/g, ''))) {
-        return false;
-      }
-
       return true;
     });
   }, [properties, filters]);
 
-  // Add this function to handle scraper results
-  const handleScraperComplete = (newProperties) => {
-    console.log('Setting new properties from scraper:', newProperties);
-    setProperties(newProperties);
-  };
-
-  if (loading) {
-    return (
-      <div className="dashboard">
-        <h1>Home Flipper AI Dashboard</h1>
-        <div className="loading">Loading properties...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="dashboard">
-        <h1>Home Flipper AI Dashboard</h1>
-        <div className="error">{error}</div>
-      </div>
-    );
-  }
-
-  console.log('Rendering Dashboard with properties:', {
+  console.log('Dashboard render:', {
     totalProperties: properties.length,
-    filteredProperties: filteredProperties.length
+    filteredCount: filteredProperties.length,
+    filters
   });
 
   return (
     <div className="dashboard">
       <h1>Home Flipper AI Dashboard</h1>
       <div className="dashboard-content">
-        <div className="property-list-container">
-          <PropertyList 
-            properties={filteredProperties}
-            onPropertySelect={handlePropertySelect}
-            selectedProperty={selectedProperty}
-          />
-        </div>
-        <div className="details-container">
+        <div className="left-panel">
           <PropertyFilter 
             onFilterChange={handleFilterChange}
-            onScraperComplete={handleScraperComplete}
+            onPropertiesLoaded={handlePropertiesLoaded}
           />
-          {selectedProperty && (
-            <div className="property-details">
-              {/* Property details component will go here */}
-            </div>
-          )}
+          <div className="property-list-container">
+            {properties.length > 0 ? (
+              <PropertyList 
+                properties={filteredProperties}
+                onPropertySelect={handlePropertySelect}
+                selectedProperty={selectedProperty}
+              />
+            ) : (
+              <div className="no-properties">
+                Enter a zip code and price to search for properties
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="right-panel">
+          <MapView 
+            properties={filteredProperties}
+            selectedProperty={selectedProperty}
+            onPropertySelect={handlePropertySelect}
+          />
         </div>
       </div>
     </div>

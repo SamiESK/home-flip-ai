@@ -3,36 +3,40 @@ import PropertyCard from '../PropertyCard/PropertyCard';
 import './PropertyList.css';
 
 const PropertyList = ({ properties, onPropertySelect, selectedProperty }) => {
-  console.log('PropertyList render', {
-    propertiesLength: properties?.length,
-    properties: properties,
-    selectedProperty: selectedProperty
+  console.log('PropertyList rendering with:', {
+    propertyCount: properties?.length,
+    firstProperty: properties?.[0]
   });
 
-  if (!properties?.length) {
+  if (!Array.isArray(properties) || properties.length === 0) {
     return (
-      <div className="no-properties" style={{ border: '3px solid green' }}>
-        No properties found (Length: {properties?.length})
+      <div className="no-properties">
+        No properties found
       </div>
     );
   }
 
   return (
-    <div className="property-list" style={{ border: '3px solid purple' }}>
-      <div style={{ padding: '10px', background: '#f0f0f0' }}>
+    <div className="property-list">
+      <div className="properties-header">
         Found {properties.length} properties
       </div>
-      {properties.map((property) => {
-        console.log('Mapping property:', property);
-        return (
-          <PropertyCard 
-            key={property.property_id} 
-            property={property}
-            onClick={() => onPropertySelect(property)}
-            isSelected={selectedProperty?.property_id === property.property_id}
-          />
-        );
-      })}
+      <div className="properties-grid">
+        {properties.map((property, index) => {
+          // Add debug rendering
+          console.log(`Rendering property ${index}:`, property);
+          
+          return (
+            <div key={`${property.property_id}-${index}`} className="property-wrapper">
+              <PropertyCard 
+                property={property}
+                onClick={() => onPropertySelect(property)}
+                isSelected={selectedProperty?.property_id === property.property_id}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
