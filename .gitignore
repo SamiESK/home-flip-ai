@@ -25,6 +25,7 @@ venv/
 env/
 ENV/
 .venv
+.env
 .python-version
 
 # Node/React
@@ -62,3 +63,10 @@ data/*.csv
 !data/cleaned_flip_training_data.csv
 models/*.pkl
 *.log
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production

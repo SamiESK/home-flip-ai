@@ -30,7 +30,7 @@
         }
     </script>
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAsiSa8oXO7TABgxNmM8ggY7OwfbR5aDWg&libraries=places&callback=initMap">
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initMap`}>
     </script>
     <title>React App</title>
   </head>
