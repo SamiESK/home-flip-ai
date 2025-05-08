@@ -7,6 +7,7 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
   const markersRef = useRef({});
   const selectedInfoWindowRef = useRef(null);
   const [mapError, setMapError] = useState(null);
+  const [isMapInitialized, setIsMapInitialized] = useState(false);
 
   // Initialize map only once
   useEffect(() => {
@@ -26,6 +27,11 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
         streetViewControl: true,
         fullscreenControl: false
       });
+
+      // Add a listener for when the map is ready
+      window.google.maps.event.addListenerOnce(googleMapRef.current, 'idle', () => {
+        setIsMapInitialized(true);
+      });
     } catch (error) {
       console.error('Error initializing map:', error);
       setMapError('Error loading map');
@@ -34,7 +40,7 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
 
   // Handle markers creation/update
   useEffect(() => {
-    if (!googleMapRef.current || !properties.length) return;
+    if (!isMapInitialized || !googleMapRef.current || !properties.length) return;
 
     // Clear existing markers
     Object.values(markersRef.current).forEach(({ marker }) => marker.setMap(null));
@@ -132,18 +138,24 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
       markersRef.current[property.property_id] = { marker, infoWindow };
     });
 
-    googleMapRef.current.fitBounds(bounds);
+    // Only fit bounds if we have valid positions
+    if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+      // If all markers are at the same position, zoom out
+      googleMapRef.current.setZoom(10);
+    } else {
+      googleMapRef.current.fitBounds(bounds);
+    }
 
     return () => {
       Object.values(markersRef.current).forEach(({ marker }) => marker.setMap(null));
       markersRef.current = {};
       selectedInfoWindowRef.current = null;
     };
-  }, [properties, onPropertySelect]);
+  }, [properties, onPropertySelect, isMapInitialized]);
 
   // Handle selected property changes
   useEffect(() => {
-    if (!selectedProperty || !markersRef.current[selectedProperty.property_id]) return;
+    if (!isMapInitialized || !selectedProperty || !markersRef.current[selectedProperty.property_id]) return;
 
     const { marker, infoWindow } = markersRef.current[selectedProperty.property_id];
     
@@ -155,7 +167,7 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
     // Open and select this info window
     infoWindow.open(googleMapRef.current, marker);
     selectedInfoWindowRef.current = infoWindow;
-  }, [selectedProperty]);
+  }, [selectedProperty, isMapInitialized]);
 
   return (
     <div className="map-container">

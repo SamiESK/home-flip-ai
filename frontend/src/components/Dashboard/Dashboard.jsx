@@ -3,12 +3,14 @@ import React, { useCallback } from 'react';
 import PropertyList from '../PropertyList/PropertyList';
 import PropertyFilter from '../PropertyFilter/PropertyFilter';
 import MapView from '../MapView/MapView';
+import GoogleMapsLoader from '../GoogleMapsLoader/GoogleMapsLoader';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const [properties, setProperties] = React.useState([]);
   const [filters, setFilters] = React.useState({});
   const [selectedProperty, setSelectedProperty] = React.useState(null);
+  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = React.useState(false);
 
   const handleFilterChange = (filterName, value) => {
     console.log('Filter changed:', filterName, value);
@@ -39,6 +41,10 @@ const Dashboard = () => {
     setSelectedProperty(property);
   }, []);
 
+  const handleGoogleMapsLoad = useCallback(() => {
+    setIsGoogleMapsLoaded(true);
+  }, []);
+
   // Filter properties based on current filters
   const filteredProperties = React.useMemo(() => {
     console.log('Filtering properties:', {
@@ -66,6 +72,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard">
+      <GoogleMapsLoader onLoad={handleGoogleMapsLoad} />
       <h1>Home Flipper AI Dashboard</h1>
       <div className="dashboard-content">
         <div className="left-panel">
@@ -88,11 +95,13 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="right-panel">
-          <MapView 
-            properties={filteredProperties}
-            selectedProperty={selectedProperty}
-            onPropertySelect={handlePropertySelect}
-          />
+          {isGoogleMapsLoaded && (
+            <MapView 
+              properties={filteredProperties}
+              selectedProperty={selectedProperty}
+              onPropertySelect={handlePropertySelect}
+            />
+          )}
         </div>
       </div>
     </div>

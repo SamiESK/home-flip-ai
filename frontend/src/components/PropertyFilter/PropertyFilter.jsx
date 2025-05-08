@@ -1,4 +1,3 @@
-// frontend/src/components/PropertyFilter/PropertyFilter.jsx
 import React, { useState } from 'react';
 import './PropertyFilter.css';
 import { scrapeProperties } from '../../services/api';
@@ -8,7 +7,6 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
   const [maxPrice, setMaxPrice] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [debugProperties, setDebugProperties] = useState([]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,11 +17,7 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
       // Clean price before sending to API
       const cleanedMaxPrice = maxPrice.replace(/,/g, '');
       
-      // Log the request
-      console.log('Sending request with:', { zipCode, cleanedMaxPrice });
-      
       const response = await scrapeProperties(zipCode, cleanedMaxPrice);
-      console.log('Raw API Response:', response);
 
       if (!response?.properties) {
         throw new Error('No properties data in response');
@@ -33,21 +27,9 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
       const propertiesArray = Array.isArray(response.properties) ? 
         response.properties : Object.values(response.properties);
 
-      console.log('Properties array before processing:', {
-        length: propertiesArray.length,
-        sample: propertiesArray[0]
-      });
-
       const processedProperties = propertiesArray
         .filter(Boolean)
         .map(property => {
-          // Add photo processing debug log
-          console.log('Processing property photos:', {
-            propertyId: property.property_id,
-            rawPhotos: property.photos,
-            altPhotos: property.alt_photos
-          });
-
           // Handle different photo field possibilities
           let processedPhotos = [];
           if (property.photos) {
@@ -64,7 +46,7 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
             }
           }
 
-          const processed = {
+          return {
             property_id: property.property_id || `temp_${Math.random()}`,
             street: property.street || 'Address not available',
             city: property.city || '',
@@ -83,22 +65,8 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
             photos: processedPhotos,
             property_url: property.property_url || ''
           };
-          
-          console.log('Processed property:', {
-            id: processed.property_id,
-            street: processed.street,
-            price: processed.list_price
-          });
-          
-          return processed;
         });
 
-      console.log('Final processed properties:', {
-        count: processedProperties.length,
-        sample: processedProperties[0]
-      });
-
-      setDebugProperties(processedProperties);
       onPropertiesLoaded(processedProperties);
       onFilterChange('zipCode', zipCode);
       onFilterChange('maxPrice', maxPrice);
@@ -144,27 +112,6 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
           className="search-button"
         >
           {loading ? 'Searching...' : 'Search Properties'}
-        </button>
-        
-        <button 
-          type="button" 
-          onClick={() => {
-            console.log('Debug - Current properties:', {
-              count: debugProperties.length,
-              properties: debugProperties
-            });
-          }}
-          className="debug-button"
-          style={{ 
-            marginTop: '8px', 
-            padding: '8px', 
-            background: '#f0f0f0',
-            width: '100%',
-            border: '1px solid #ddd',
-            borderRadius: '4px'
-          }}
-        >
-          Debug: Show Properties ({debugProperties.length})
         </button>
         
         {error && <div className="error">{error}</div>}
