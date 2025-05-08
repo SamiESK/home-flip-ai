@@ -1,5 +1,5 @@
 // frontend/src/components/Dashboard/Dashboard.jsx
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import PropertyList from '../PropertyList/PropertyList';
 import PropertyFilter from '../PropertyFilter/PropertyFilter';
 import MapView from '../MapView/MapView';
@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [filters, setFilters] = React.useState({});
   const [selectedProperty, setSelectedProperty] = React.useState(null);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = React.useState(false);
+  const [mapLoadAttempts, setMapLoadAttempts] = React.useState(0);
 
   const handleFilterChange = (filterName, value) => {
     console.log('Filter changed:', filterName, value);
@@ -42,8 +43,21 @@ const Dashboard = () => {
   }, []);
 
   const handleGoogleMapsLoad = useCallback(() => {
+    console.log('Google Maps loaded, setting isGoogleMapsLoaded to true');
     setIsGoogleMapsLoaded(true);
   }, []);
+
+  // Add this effect to handle map loading retries
+  useEffect(() => {
+    if (!isGoogleMapsLoaded && mapLoadAttempts < 3) {
+      const timer = setTimeout(() => {
+        console.log('Retrying map load, attempt:', mapLoadAttempts + 1);
+        setMapLoadAttempts(prev => prev + 1);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isGoogleMapsLoaded, mapLoadAttempts]);
 
   // Filter properties based on current filters
   const filteredProperties = React.useMemo(() => {
@@ -73,7 +87,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <GoogleMapsLoader onLoad={handleGoogleMapsLoad} />
-      <h1>Home Flipper AI Dashboard</h1>
+      <h1>Boo Zaga Dashboard</h1>
       <div className="dashboard-content">
         <div className="left-panel">
           <PropertyFilter 
@@ -95,12 +109,17 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="right-panel">
-          {isGoogleMapsLoaded && (
+          {isGoogleMapsLoaded ? (
             <MapView 
               properties={filteredProperties}
               selectedProperty={selectedProperty}
               onPropertySelect={handlePropertySelect}
             />
+          ) : (
+            <div className="map-loading">
+              <div className="loading-spinner"></div>
+              <p>Loading map... {mapLoadAttempts > 0 ? `(Attempt ${mapLoadAttempts})` : ''}</p>
+            </div>
           )}
         </div>
       </div>
