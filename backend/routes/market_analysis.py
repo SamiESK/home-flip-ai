@@ -207,9 +207,9 @@ async def get_comparable_properties(target_property: Dict) -> List[Dict]:
         df = df.rename(columns={v: k for k, v in column_mapping.items() if v in df.columns})
         logger.info(f"Columns after mapping: {df.columns.tolist()}")
         
-        # Include active (for sale), SOLD, and PENDING properties
-        df = df[df['status'].str.upper().isin(['SOLD', 'PENDING', 'ACTIVE', ''])]
-        logger.info(f"Found {len(df)} SOLD/PENDING/ACTIVE properties")
+        # Include both PENDING and ACTIVE properties
+        df = df[df['status'].str.upper().isin(['ACTIVE', 'PENDING'])]
+        logger.info(f"Found {len(df)} ACTIVE/PENDING properties")
         
         # Convert numeric columns
         numeric_columns = ['list_price', 'sqft', 'beds', 'baths', 'days_on_market', 'sold_price']

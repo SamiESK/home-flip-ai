@@ -225,16 +225,34 @@ const MarketAnalysis = ({ property }) => {
       
       <div className="metrics-grid">
         <div className="metric-card">
-          <h3>Average Price</h3>
+          <h3>Market Average Price</h3>
           <div className="metric-value">{formatPrice(market_metrics.avg_price)}</div>
         </div>
         <div className="metric-card">
-          <h3>Price Per Sq Ft</h3>
+          <h3>Market Average Price/Sqft</h3>
           <div className="metric-value">{formatPrice(market_metrics.avg_price_per_sqft)}/sqft</div>
         </div>
         <div className="metric-card">
-          <h3>Days on Market</h3>
+          <h3>Market Average DOM</h3>
           <div className="metric-value">{formatNumber(market_metrics.avg_days_on_market)} days</div>
+        </div>
+      </div>
+
+      <div className="property-metrics">
+        <h3>Selected Property</h3>
+        <div className="metrics-grid">
+          <div className="metric-card">
+            <h3>List Price</h3>
+            <div className="metric-value">{formatPrice(property.list_price)}</div>
+          </div>
+          <div className="metric-card">
+            <h3>Price/Sqft</h3>
+            <div className="metric-value">{formatPrice(property.list_price / property.sqft)}/sqft</div>
+          </div>
+          <div className="metric-card">
+            <h3>Days on Market</h3>
+            <div className="metric-value">{formatNumber(property.days_on_market)} days</div>
+          </div>
         </div>
       </div>
 
@@ -342,45 +360,39 @@ const MarketAnalysis = ({ property }) => {
                     {photoUrl ? (
                       <img 
                         src={photoUrl}
-                        alt={`Property at ${comp.street}`}
+                        alt={`${comp.street}`}
                         onError={(e) => {
                           console.log('Image load error:', e.target.src);
                           e.target.parentElement.innerHTML = '<div class="no-image">Image Not Available</div>';
                         }}
                       />
                     ) : (
-                      <div className="no-image">No Image Available</div>
+                      <div className="placeholder-image">No photo available</div>
                     )}
-                    <div className={`status ${comp.status?.toLowerCase() || ''}`}>
+                    <div className={`status-badge ${comp.status?.toLowerCase()}`}>
                       {comp.status || 'Active'}
                     </div>
                   </div>
                   <div className="comp-details">
-                    <div className="comp-price">
-                      <h4>{formatPrice(comp.list_price)}</h4>
-                      {comp.sale_price && (
-                        <div className="sold-price">
-                          Sold: {formatPrice(comp.sale_price)}
-                          {comp.sale_date && (
-                            <span className="sale-date"> on {new Date(comp.sale_date).toLocaleDateString()}</span>
-                          )}
-                        </div>
-                      )}
+                    <h4>{comp.street}</h4>
+                    <div className="comp-stats">
+                      <div className="stat">
+                        <span className="label">Price:</span>
+                        <span className="value">{formatPrice(comp.list_price)}</span>
+                      </div>
+                      <div className="stat">
+                        <span className="label">Sqft:</span>
+                        <span className="value">{formatNumber(comp.sqft)}</span>
+                      </div>
+                      <div className="stat">
+                        <span className="label">$/sqft:</span>
+                        <span className="value">{formatPrice(comp.list_price / comp.sqft)}/sqft</span>
+                      </div>
+                      <div className="stat">
+                        <span className="label">DOM:</span>
+                        <span className="value">{comp.days_on_market} days</span>
+                      </div>
                     </div>
-                    <p className="comp-address">{comp.street}</p>
-                    <p className="comp-specs">
-                      {comp.beds} beds • {comp.baths} baths • {formatNumber(comp.sqft)} sqft
-                    </p>
-                    {comp.sqft && (
-                      <p className="comp-price-sqft">
-                        {formatPrice((comp.sale_price || comp.list_price) / comp.sqft)}/sqft
-                      </p>
-                    )}
-                    {comp.days_on_market !== undefined && (
-                      <p className="comp-dom">
-                        {formatNumber(comp.days_on_market)} days on market
-                      </p>
-                    )}
                   </div>
                 </div>
               );

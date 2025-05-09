@@ -374,7 +374,16 @@
     overflow: hidden;
   }
   
-  .comp-image .no-image {
+  .comp-image img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .placeholder-image {
     position: absolute;
     top: 0;
     left: 0;
@@ -382,20 +391,6 @@
     height: 100%;
     display: flex;
     align-items: center;
-    justify-content: center;
-    background: #f0f0f0;
-    color: #666;
-    font-size: 14px;
-    text-align: center;
-    padding: 20px;
-  }
-  
-  .comp-image img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
     object-fit: cover;
     transition: transform 0.3s ease;
   }

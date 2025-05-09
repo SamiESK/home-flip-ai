@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import market_analysis, scraper
+from routes.market_analysis import router as market_analysis_router
+from routes.price_prediction import router as price_prediction_router
 import logging
 
 # Configure logging
@@ -19,7 +21,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(market_analysis.router)
+app.include_router(market_analysis_router)
+app.include_router(price_prediction_router)
 app.include_router(scraper.router)
 
 @app.get("/")

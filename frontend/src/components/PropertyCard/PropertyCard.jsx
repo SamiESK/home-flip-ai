@@ -1,6 +1,8 @@
 // frontend/src/components/PropertyCard/PropertyCard.jsx
 import React, { useState, useEffect } from 'react';
+import { Box } from '@mui/material';
 import './PropertyCard.css';
+import PricePrediction from '../PricePrediction/PricePrediction';
 
 const PropertyCard = ({ property, onClick, isSelected }) => {
   const [imageError, setImageError] = useState(false);
@@ -170,6 +172,11 @@ const PropertyCard = ({ property, onClick, isSelected }) => {
             </a>
           )}
         </div>
+        
+        {/* Add Price Prediction section */}
+        <Box mt={3}>
+          <PricePrediction propertyId={property.property_id} />
+        </Box>
       </div>
     </div>
   );
