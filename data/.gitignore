@@ -1,0 +1,6 @@
+# Ignore temporary search results
+temp_*.csv
+HomeHarvest_*.csv
+
+# Keep these files
+!historical_flips.csv 

@@ -1,1 +1,6 @@
-price, sqft, beds, baths, zip_code, days_on_market, fixer_keyword, zestimate_diff, projected_profit, is_good_flip
+property_id,price,sqft,beds,baths,street,city,state,zip_code,days_on_market,status,list_date,photos,zillow_link,is_good_flip,roi,price_trend,sale_price
+1001,425000,2240,4,2.5,"8452 Gordon Ct","Orlando","FL","32801",45,"Sold","2024-01-01","https://ap.rdcpix.com/6b6a0b5931dd7c4d0f4b6dc4dce3c8d6l-m3203251265od-w1024_h768.jpg","https://www.realtor.com/realestateandhomes-detail/8452-Gordon-Ct_Orlando_FL_32801",true,15,0.05,489000
+1002,399900,2100,4,2,"6734 Lakewood Dr","Orlando","FL","32801",30,"Sold","2024-02-15","https://ap.rdcpix.com/9f38c1bead9a0f58bcd203d0842efde4l-m3751361455od-w1024_h768.jpg","https://www.realtor.com/realestateandhomes-detail/6734-Lakewood-Dr_Orlando_FL_32801",true,18,0.06,472000
+1003,450000,2400,3,2,"123 Lake Ave","Winter Park","FL","32789",60,"Sold","2024-03-01","https://ap.rdcpix.com/1234567l-m1234567od-w1024_h768.jpg","https://www.realtor.com/realestateandhomes-detail/123-Lake-Ave_Winter-Park_FL_32789",true,12,0.04,504000
+1004,375000,1800,3,2,"456 Palm St","Orlando","FL","32803",15,"Sold","2024-04-20","https://ap.rdcpix.com/7654321l-m7654321od-w1024_h768.jpg","https://www.realtor.com/realestateandhomes-detail/456-Palm-St_Orlando_FL_32803",false,5,0.02,393000
+1005,525000,2800,5,3,"789 Oak Rd","Winter Park","FL","32789",90,"Sold","2024-03-15","https://ap.rdcpix.com/9876543l-m9876543od-w1024_h768.jpg","https://www.realtor.com/realestateandhomes-detail/789-Oak-Rd_Winter-Park_FL_32789",true,20,0.07,630000

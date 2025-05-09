@@ -66,7 +66,13 @@ def generate_analysis(current_property, similar_properties):
     avg_historical_price = np.mean([p['price'] for p in similar_properties])
     price_diff_percent = ((current_property['price'] - avg_historical_price) / avg_historical_price) * 100
     
-    if price_diff_percent < -10:
+    if price_diff_percent < -15:
+        analysis.append({
+            'type': 'price',
+            'message': f"Excellent price point! This property is {abs(price_diff_percent):.1f}% below similar historical properties, indicating strong potential for value appreciation.",
+            'confidence': 'high'
+        })
+    elif price_diff_percent < -10:
         analysis.append({
             'type': 'price',
             'message': f"Good price point! This property is {abs(price_diff_percent):.1f}% below similar historical properties.",
@@ -75,7 +81,7 @@ def generate_analysis(current_property, similar_properties):
     elif price_diff_percent > 10:
         analysis.append({
             'type': 'price',
-            'message': f"Price is {price_diff_percent:.1f}% higher than similar historical properties. Consider negotiating.",
+            'message': f"Price is {price_diff_percent:.1f}% higher than similar historical properties. Consider negotiating or looking for properties with better value.",
             'confidence': 'medium'
         })
     
@@ -83,29 +89,106 @@ def generate_analysis(current_property, similar_properties):
     avg_historical_sqft = np.mean([p['sqft'] for p in similar_properties])
     sqft_diff_percent = ((current_property['sqft'] - avg_historical_sqft) / avg_historical_sqft) * 100
     
-    if sqft_diff_percent > 10:
+    if sqft_diff_percent > 15:
+        analysis.append({
+            'type': 'size',
+            'message': f"Significantly larger than average! This property is {sqft_diff_percent:.1f}% bigger than similar properties, offering more potential for value-add improvements.",
+            'confidence': 'high'
+        })
+    elif sqft_diff_percent > 10:
         analysis.append({
             'type': 'size',
             'message': f"Larger than average! This property is {sqft_diff_percent:.1f}% bigger than similar properties.",
             'confidence': 'high'
         })
     
+    # Price per square foot analysis
+    current_ppsf = current_property['price'] / current_property['sqft']
+    avg_historical_ppsf = np.mean([p['price'] / p['sqft'] for p in similar_properties])
+    ppsf_diff_percent = ((current_ppsf - avg_historical_ppsf) / avg_historical_ppsf) * 100
+    
+    if ppsf_diff_percent < -10:
+        analysis.append({
+            'type': 'value',
+            'message': f"Excellent value! Price per square foot is {abs(ppsf_diff_percent):.1f}% below market average, indicating strong potential for appreciation.",
+            'confidence': 'high'
+        })
+    
     # Days on market analysis
-    if current_property['days_on_market'] > 30:
+    if current_property['days_on_market'] > 45:
+        analysis.append({
+            'type': 'timing',
+            'message': "Property has been on market for over 45 days. This presents a strong negotiation opportunity and potential for a below-market purchase.",
+            'confidence': 'high'
+        })
+    elif current_property['days_on_market'] > 30:
         analysis.append({
             'type': 'timing',
             'message': "Property has been on market for over 30 days. This could be a negotiation opportunity.",
             'confidence': 'medium'
         })
     
-    # Add historical success rate
+    # Historical success analysis
     successful_flips = sum(1 for p in similar_properties if p.get('is_good_flip', False))
     success_rate = (successful_flips / len(similar_properties)) * 100
     
-    analysis.append({
-        'type': 'historical',
-        'message': f"Similar properties have a {success_rate:.1f}% success rate for flipping.",
-        'confidence': 'high' if success_rate > 70 else 'medium'
-    })
+    if success_rate > 80:
+        analysis.append({
+            'type': 'historical',
+            'message': f"Excellent historical performance! Similar properties have a {success_rate:.1f}% success rate for flipping, indicating strong market conditions.",
+            'confidence': 'high'
+        })
+    elif success_rate > 70:
+        analysis.append({
+            'type': 'historical',
+            'message': f"Good historical performance! Similar properties have a {success_rate:.1f}% success rate for flipping.",
+            'confidence': 'high'
+        })
+    else:
+        analysis.append({
+            'type': 'historical',
+            'message': f"Similar properties have a {success_rate:.1f}% success rate for flipping. Consider looking for properties in more favorable market conditions.",
+            'confidence': 'medium'
+        })
+    
+    # Market trend analysis
+    price_trends = [p.get('price_trend', 0) for p in similar_properties]
+    avg_price_trend = np.mean(price_trends)
+    
+    if avg_price_trend > 0.05:  # 5% monthly growth
+        analysis.append({
+            'type': 'trend',
+            'message': f"Strong market growth! Similar properties are appreciating at {avg_price_trend*100:.1f}% per month, indicating favorable market conditions.",
+            'confidence': 'high'
+        })
+    elif avg_price_trend > 0:
+        analysis.append({
+            'type': 'trend',
+            'message': f"Positive market trend! Similar properties are appreciating at {avg_price_trend*100:.1f}% per month.",
+            'confidence': 'medium'
+        })
+    
+    # Overall recommendation
+    positive_factors = sum(1 for a in analysis if a['confidence'] == 'high')
+    total_factors = len(analysis)
+    
+    if positive_factors >= total_factors * 0.7:  # 70% or more positive factors
+        analysis.append({
+            'type': 'overall',
+            'message': "Strong flip potential! Multiple positive factors indicate this property could be a good investment opportunity.",
+            'confidence': 'high'
+        })
+    elif positive_factors >= total_factors * 0.5:  # 50% or more positive factors
+        analysis.append({
+            'type': 'overall',
+            'message': "Moderate flip potential. Consider this property if other factors align with your investment strategy.",
+            'confidence': 'medium'
+        })
+    else:
+        analysis.append({
+            'type': 'overall',
+            'message': "Limited flip potential. Consider looking for properties with more favorable conditions.",
+            'confidence': 'medium'
+        })
     
     return analysis

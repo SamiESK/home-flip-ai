@@ -12,19 +12,28 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
 
   // Create info window content
   const createInfoWindowContent = (property) => {
+    const photoUrl = property.photos?.[0];
+    const hasValidPhoto = photoUrl && typeof photoUrl === 'string' && photoUrl.startsWith('http');
+    
     return `
       <div style="padding: 8px; max-width: 300px;">
         <div style="margin-bottom: 8px;">
-          <img 
-            src="${property.photos?.[0] || 'https://placehold.co/300x200/e0e0e0/999999?text=No+Image'}" 
-            alt="${property.street}"
-            style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;"
-            onerror="this.src='https://placehold.co/300x200/e0e0e0/999999?text=No+Image'"
-          />
+          ${hasValidPhoto ? `
+            <img 
+              src="${photoUrl}" 
+              alt="${property.street}"
+              style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;"
+              onerror="this.parentElement.innerHTML = '<div style=\'width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #666; border-radius: 4px;\'>No Image Available</div>'"
+            />
+          ` : `
+            <div style="width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #666; border-radius: 4px;">
+              No Image Available
+            </div>
+          `}
         </div>
         <h3 style="margin: 0 0 8px 0; font-size: 16px;">$${property.list_price.toLocaleString()}</h3>
         <p style="margin: 0 0 4px 0; font-size: 14px;">${property.street}</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px;">${property.beds} beds • ${property.full_baths} baths • ${property.sqft.toLocaleString()} sqft</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px;">${property.beds} beds • ${property.baths} baths • ${property.sqft.toLocaleString()} sqft</p>
         ${property.property_url ? `
           <a 
             href="${property.property_url}" 
@@ -50,6 +59,13 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
 
   useEffect(() => {
     if (!window.google || !window.google.maps || !mapRef.current) {
+      console.log('MapView: Missing dependencies', {
+        google: !!window.google,
+        maps: !!window.google?.maps,
+        mapRef: !!mapRef.current,
+        properties: properties?.length
+      });
+      setMapError('Map is still initializing...');
       return;
     }
 
@@ -58,9 +74,15 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
     const currentProperties = propertiesRef.current;
 
     try {
+      console.log('MapView: Initializing with properties:', {
+        count: properties?.length,
+        first: properties?.[0],
+        hasGoogleMaps: !!window.google?.maps
+      });
+
       // Only initialize the map if it hasn't been initialized yet
       if (!googleMapRef.current) {
-        console.log('Initializing new map');
+        console.log('MapView: Creating new map instance');
         googleMapRef.current = new window.google.maps.Map(mapRef.current, {
           center: { lat: 28.5383, lng: -81.3792 }, // Orlando
           zoom: 10,
@@ -74,13 +96,31 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
       const bounds = new window.google.maps.LatLngBounds();
       let hasValidMarkers = false;
 
+      // Log the properties we're about to process
+      console.log('MapView: Properties to process:', properties?.map(p => ({
+        id: p.property_id,
+        street: p.street,
+        lat: p.latitude,
+        lng: p.longitude
+      })));
+
       // Add new markers only for properties that don't have markers yet
       properties.forEach(property => {
+        console.log('MapView: Processing property:', {
+          id: property.property_id,
+          street: property.street,
+          lat: property.latitude,
+          lng: property.longitude,
+          hasMarker: currentProperties.has(property.property_id)
+        });
+
         if (property.latitude && property.longitude && !currentProperties.has(property.property_id)) {
           const position = { 
             lat: parseFloat(property.latitude), 
             lng: parseFloat(property.longitude) 
           };
+
+          console.log('MapView: Creating marker at position:', position);
 
           const marker = new window.google.maps.Marker({
             position: position,
@@ -160,7 +200,6 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
       }
 
     } catch (error) {
-      console.error('Error initializing map:', error);
       setMapError(error.message);
     }
 

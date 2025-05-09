@@ -4,3 +4,9 @@ pandas
 xgboost
 scikit-learn
 numpy
+python-dotenv
+fastapi
+uvicorn
+requests
+beautifulsoup4
+homeharvest

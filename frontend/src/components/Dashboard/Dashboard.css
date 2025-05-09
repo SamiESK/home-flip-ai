@@ -1,39 +1,48 @@
 /* frontend/src/components/Dashboard/Dashboard.css */
 .dashboard {
-  padding: 0;
-  margin: 0;
+  padding: 20px;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .dashboard h1 {
-  padding: 16px;
-  margin: 0;
-  background: white;
-  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  color: #2c3e50;
 }
 
 .dashboard-content {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  height: calc(100vh - 60px); /* Adjust based on header height */
-  overflow: hidden;
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
 }
 
 .left-panel {
+  width: 400px;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-right: 1px solid #e0e0e0;
-  overflow: hidden; /* Important */
+  gap: 20px;
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.right-panel > *:first-child {
+  min-height: 300px; /* Minimum height for the map */
+  flex-shrink: 0;
 }
 
 .property-list-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding-right: 10px;
 }
 
 .properties-count {
@@ -42,13 +51,6 @@
   border-radius: 4px;
   margin-bottom: 16px;
 }
-
-.right-panel {
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Remove any other scrollbar styling from the dashboard level */
 
 .details-container {
   background: white;
@@ -80,9 +82,11 @@
 }
 
 .no-properties {
-  text-align: center;
   padding: 20px;
+  text-align: center;
   color: #666;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 
 .loading {
@@ -125,16 +129,13 @@
 }
 
 .map-loading {
-  height: 100%;
-  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: #f0f0f0;
+  background: #f8f9fa;
   border-radius: 8px;
-  color: #666;
-  font-size: 1.1em;
 }
 
 .loading-spinner {
@@ -144,10 +145,26 @@
   border-top: 4px solid #3498db;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.market-analysis-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  min-height: 200px;
+  flex: 0 1 auto; /* Allow shrinking but don't grow automatically */
+}
+
+/* Ensure map container takes remaining space */
+.map-container {
+  flex: 1;
+  min-height: 300px;
+  position: relative;
 }

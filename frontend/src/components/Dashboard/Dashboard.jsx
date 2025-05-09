@@ -1,8 +1,9 @@
 // frontend/src/components/Dashboard/Dashboard.jsx
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import PropertyList from '../PropertyList/PropertyList';
 import PropertyFilter from '../PropertyFilter/PropertyFilter';
 import MapView from '../MapView/MapView';
+import MarketAnalysis from '../MarketAnalysis/MarketAnalysis';
 import GoogleMapsLoader from '../GoogleMapsLoader/GoogleMapsLoader';
 import './Dashboard.css';
 
@@ -14,7 +15,6 @@ const Dashboard = () => {
   const [mapLoadAttempts, setMapLoadAttempts] = React.useState(0);
 
   const handleFilterChange = (filterName, value) => {
-    console.log('Filter changed:', filterName, value);
     setFilters(prev => ({
       ...prev,
       [filterName]: value
@@ -22,28 +22,32 @@ const Dashboard = () => {
   };
 
   const handlePropertiesLoaded = useCallback((newProperties) => {
-    console.log('Dashboard receiving properties:', {
-      hasProperties: !!newProperties,
-      isArray: Array.isArray(newProperties),
-      length: newProperties?.length,
-      sampleProperty: newProperties?.[0]
-    });
-
+    console.log('Properties loaded in Dashboard:', newProperties);
     if (Array.isArray(newProperties) && newProperties.length > 0) {
+      console.log('Setting properties:', newProperties);
+      // When new properties are loaded, update the filters to match the search criteria
+      const firstProperty = newProperties[0];
+      setFilters({
+        zipCode: firstProperty.zip_code,
+        maxPrice: firstProperty.list_price
+      });
       setProperties(newProperties);
     } else {
-      console.warn('Invalid or empty properties data received:', newProperties);
+      console.log('No valid properties received');
       setProperties([]);
     }
   }, []);
 
   const handlePropertySelect = useCallback((property) => {
-    console.log('Selected property:', property);
+    console.log('Property selected in Dashboard:', property);
+    if (!property || !property.property_id) {
+      console.error('Invalid property selected:', property);
+      return;
+    }
     setSelectedProperty(property);
   }, []);
 
   const handleGoogleMapsLoad = useCallback(() => {
-    console.log('Google Maps loaded, setting isGoogleMapsLoaded to true');
     setIsGoogleMapsLoaded(true);
   }, []);
 
@@ -51,7 +55,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (!isGoogleMapsLoaded && mapLoadAttempts < 3) {
       const timer = setTimeout(() => {
-        console.log('Retrying map load, attempt:', mapLoadAttempts + 1);
         setMapLoadAttempts(prev => prev + 1);
       }, 2000);
 
@@ -61,33 +64,60 @@ const Dashboard = () => {
 
   // Filter properties based on current filters
   const filteredProperties = React.useMemo(() => {
-    console.log('Filtering properties:', {
-      total: properties.length,
-      filters
-    });
+    if (!Array.isArray(properties)) {
+      console.log('Properties is not an array:', properties);
+      return [];
+    }
     
-    if (!Array.isArray(properties)) return [];
-    
-    return properties.filter(property => {
-      if (filters.zipCode && property.zip_code !== filters.zipCode) return false;
-      if (filters.maxPrice) {
-        const maxPrice = Number(filters.maxPrice.replace(/,/g, ''));
-        if (property.list_price > maxPrice) return false;
+    console.log('Filtering properties with filters:', filters);
+    const filtered = properties.filter(property => {
+      // Filter out non-active properties
+      const status = (property.status || '').toUpperCase();
+      if (status === 'PENDING' || status === 'SOLD' || status === 'CLOSED') {
+        console.log('Property filtered out by status:', {
+          property: property.street,
+          status: status
+        });
+        return false;
       }
+
+      // Convert both to strings for comparison
+      const propertyZip = String(property.zip_code || '');
+      const filterZip = String(filters.zipCode || '');
+      
+      // Only apply zip code filter if it exists and doesn't match
+      if (filters.zipCode && propertyZip !== filterZip) {
+        console.log('Property filtered out by zip code:', {
+          property: propertyZip,
+          filter: filterZip
+        });
+        return false;
+      }
+
+      // Only apply price filter if it exists
+      if (filters.maxPrice) {
+        const maxPrice = Number(String(filters.maxPrice).replace(/[^0-9.-]+/g, ''));
+        const propertyPrice = Number(property.list_price);
+        if (!isNaN(maxPrice) && !isNaN(propertyPrice) && propertyPrice > maxPrice) {
+          console.log('Property filtered out by price:', {
+            property: propertyPrice,
+            max: maxPrice
+          });
+          return false;
+        }
+      }
+
       return true;
     });
+    
+    console.log('Filtered properties:', filtered);
+    return filtered;
   }, [properties, filters]);
-
-  console.log('Dashboard render:', {
-    totalProperties: properties.length,
-    filteredCount: filteredProperties.length,
-    filters
-  });
 
   return (
     <div className="dashboard">
       <GoogleMapsLoader onLoad={handleGoogleMapsLoad} />
-      <h1>Boo Zaga Dashboard</h1>
+      <h1>🍉</h1>
       <div className="dashboard-content">
         <div className="left-panel">
           <PropertyFilter 
@@ -95,7 +125,7 @@ const Dashboard = () => {
             onPropertiesLoaded={handlePropertiesLoaded}
           />
           <div className="property-list-container">
-            {properties.length > 0 ? (
+            {filteredProperties.length > 0 ? (
               <PropertyList 
                 properties={filteredProperties}
                 onPropertySelect={handlePropertySelect}
@@ -103,18 +133,31 @@ const Dashboard = () => {
               />
             ) : (
               <div className="no-properties">
-                Enter a zip code and price to search for properties
+                {properties.length > 0 ? 'No properties match the current filters' : 'Enter a zip code and price to search for properties'}
               </div>
             )}
           </div>
         </div>
         <div className="right-panel">
           {isGoogleMapsLoaded ? (
-            <MapView 
-              properties={filteredProperties}
-              selectedProperty={selectedProperty}
-              onPropertySelect={handlePropertySelect}
-            />
+            <>
+              {filteredProperties.length > 0 ? (
+                <MapView 
+                  properties={filteredProperties}
+                  selectedProperty={selectedProperty}
+                  onPropertySelect={handlePropertySelect}
+                />
+              ) : (
+                <div className="no-properties-map">
+                  No properties to display on the map
+                </div>
+              )}
+              {selectedProperty && selectedProperty.property_id && (
+                <div className="market-analysis-container">
+                  <MarketAnalysis property={selectedProperty} />
+                </div>
+              )}
+            </>
           ) : (
             <div className="map-loading">
               <div className="loading-spinner"></div>

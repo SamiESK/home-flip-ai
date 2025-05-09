@@ -15,9 +15,10 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
 
     try {
       // Clean price before sending to API
-      const cleanedMaxPrice = maxPrice.replace(/,/g, '');
+      const cleanedMaxPrice = maxPrice.replace(/[^0-9.-]+/g, '');
       
       const response = await scrapeProperties(zipCode, cleanedMaxPrice);
+      console.log('Raw API response:', response);
 
       if (!response?.properties) {
         throw new Error('No properties data in response');
@@ -26,9 +27,44 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
       // Ensure we have an array of properties
       const propertiesArray = Array.isArray(response.properties) ? 
         response.properties : Object.values(response.properties);
+      console.log('Initial properties array:', propertiesArray);
 
       const processedProperties = propertiesArray
         .filter(Boolean)
+        .filter(property => {
+          // Only include properties with valid coordinates and active status
+          const lat = Number(property.latitude);
+          const lng = Number(property.longitude);
+          const status = (property.status || '').toUpperCase();
+          const isValid = !isNaN(lat) && !isNaN(lng) && 
+                         lat >= -90 && lat <= 90 && 
+                         lng >= -180 && lng <= 180;
+          
+          // Skip properties that are not active (PENDING, SOLD, etc)
+          if (status === 'PENDING' || status === 'SOLD' || status === 'CLOSED') {
+            console.log('Property filtered out by status:', {
+              property_id: property.property_id,
+              street: property.street,
+              status: status
+            });
+            return false;
+          }
+          
+          // Log all properties and their coordinate info
+          console.log('Property coordinate check:', { 
+            property_id: property.property_id,
+            street: property.street,
+            latitude: property.latitude,
+            longitude: property.longitude,
+            status: status,
+            parsed_lat: lat,
+            parsed_lng: lng,
+            isValid,
+            reason: isValid ? 'valid' : 'invalid coordinates'
+          });
+          
+          return isValid;
+        })
         .map(property => {
           // Handle different photo field possibilities
           let processedPhotos = [];
@@ -46,30 +82,38 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
             }
           }
 
-          return {
+          const processed = {
             property_id: property.property_id || `temp_${Math.random()}`,
             street: property.street || 'Address not available',
             city: property.city || '',
             state: property.state || '',
-            zip_code: property.zip_code || '',
+            zip_code: String(property.zip_code || '').trim(),
             list_price: Number(String(property.list_price).replace(/[^0-9.-]+/g, '')),
             sqft: Number(String(property.sqft || '0').replace(/[^0-9.-]+/g, '')),
             beds: Number(property.beds) || 0,
-            full_baths: Number(property.full_baths) || 0,
-            days_on_mls: Number(property.days_on_mls) || 0,
-            latitude: Number(property.latitude) || 0,
-            longitude: Number(property.longitude) || 0,
+            baths: Number(property.baths || property.full_baths) || 0,
+            days_on_market: Number(property.days_on_market || property.days_on_mls) || 0,
+            latitude: Number(property.latitude),
+            longitude: Number(property.longitude),
             agent_name: property.agent_name || '',
             agent_email: property.agent_email || '',
             agent_phones: Array.isArray(property.agent_phones) ? property.agent_phones : [],
             photos: processedPhotos,
-            property_url: property.property_url || ''
+            property_url: property.property_url || '',
+            status: property.status || ''
           };
+          console.log('Processed property:', processed);
+          return processed;
         });
 
+      console.log('Final processed properties:', processedProperties);
+      
+      // Update filters first
+      onFilterChange('zipCode', zipCode.trim());
+      onFilterChange('maxPrice', cleanedMaxPrice);
+      
+      // Then update properties
       onPropertiesLoaded(processedProperties);
-      onFilterChange('zipCode', zipCode);
-      onFilterChange('maxPrice', maxPrice);
 
     } catch (error) {
       console.error('Error processing properties:', error);
