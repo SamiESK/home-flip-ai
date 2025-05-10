@@ -75,79 +75,91 @@ async def get_property(property_id: str) -> Dict:
             )
             
         # First try numeric ID match
-        property_match = properties[properties['property_id'].astype(str) == str(property_id)]
-        
-        if not property_match.empty:
-            logger.info("Found property by numeric ID")
-            property_dict = property_match.iloc[0].to_dict()
-            property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-            return property_dict
+        try:
+            property_match = properties[properties['property_id'].astype(str) == str(property_id)]
+            if not property_match.empty:
+                logger.info("Found property by numeric ID")
+                property_dict = property_match.iloc[0].to_dict()
+                property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                return property_dict
+        except Exception as e:
+            logger.warning(f"Error in numeric ID search: {str(e)}")
+            
+        # Try MLS number match if property_id looks like an MLS number
+        if property_id.isdigit() and len(property_id) >= 8:
+            try:
+                property_match = properties[properties['mls_number'].astype(str) == str(property_id)]
+                if not property_match.empty:
+                    logger.info("Found property by MLS number")
+                    property_dict = property_match.iloc[0].to_dict()
+                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                    return property_dict
+            except Exception as e:
+                logger.warning(f"Error in MLS number search: {str(e)}")
             
         # If no match, try parsing address-based ID
         try:
             # Split on underscores first
             parts = property_id.split('_')
-            if len(parts) < 4:
-                raise ValueError("Invalid property ID format")
+            if len(parts) >= 4:
+                # The first part contains the street address (may contain hyphens)
+                street = parts[0]
+                city = parts[1]
+                state = parts[2]
+                # The zip code might have an MLS number after it
+                zip_code = parts[3].split('_')[0]  # Take just the zip code part
                 
-            # The first part contains the street address (may contain hyphens)
-            street = parts[0]
-            city = parts[1]
-            state = parts[2]
-            # The zip code might have an MLS number after it
-            zip_code = parts[3].split('_')[0]  # Take just the zip code part
-            
-            logger.info(f"\nParsed address components:")
-            logger.info(f"Street: {street}")
-            logger.info(f"City: {city}")
-            logger.info(f"State: {state}")
-            logger.info(f"Zip: {zip_code}")
-            
-            # Try exact match first (with hyphens replaced by spaces)
-            property_match = properties[
-                (properties['street'].str.lower() == street.replace('-', ' ').lower()) &
-                (properties['city'].str.lower() == city.lower()) &
-                (properties['state'].str.lower() == state.lower()) &
-                (properties['zip_code'].astype(str) == str(zip_code))
-            ]
-            
-            if not property_match.empty:
-                logger.info("Found property by exact address match")
-                property_dict = property_match.iloc[0].to_dict()
-                property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                return property_dict
+                logger.info(f"\nParsed address components:")
+                logger.info(f"Street: {street}")
+                logger.info(f"City: {city}")
+                logger.info(f"State: {state}")
+                logger.info(f"Zip: {zip_code}")
                 
-            # Try fuzzy match on street name
-            street_search = street.replace('-', ' ').lower()
-            
-            # Remove unit/apt numbers for better matching
-            street_parts = street_search.split(' ')
-            street_search = ' '.join(part for part in street_parts 
-                                   if not (part.startswith('#') or 
-                                         part.lower() in ['unit', 'apt', 'apartment'] or 
-                                         part.isdigit()))
-            
-            # Try partial match on the street name
-            property_match = properties[
-                (properties['street'].str.lower().str.contains(street_search, na=False)) &
-                (properties['city'].str.lower() == city.lower()) &
-                (properties['state'].str.lower() == state.lower()) &
-                (properties['zip_code'].astype(str) == str(zip_code))
-            ]
-            
-            if not property_match.empty:
-                logger.info("Found property by fuzzy address match")
-                property_dict = property_match.iloc[0].to_dict()
-                property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                return property_dict
+                # Try exact match first (with hyphens replaced by spaces)
+                property_match = properties[
+                    (properties['street'].str.lower() == street.replace('-', ' ').lower()) &
+                    (properties['city'].str.lower() == city.lower()) &
+                    (properties['state'].str.lower() == state.lower()) &
+                    (properties['zip_code'].astype(str) == str(zip_code))
+                ]
                 
+                if not property_match.empty:
+                    logger.info("Found property by exact address match")
+                    property_dict = property_match.iloc[0].to_dict()
+                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                    return property_dict
+                    
+                # Try fuzzy match on street name
+                street_search = street.replace('-', ' ').lower()
+                
+                # Remove unit/apt numbers for better matching
+                street_parts = street_search.split(' ')
+                street_search = ' '.join(part for part in street_parts 
+                                       if not (part.startswith('#') or 
+                                             part.lower() in ['unit', 'apt', 'apartment'] or 
+                                             part.isdigit()))
+                
+                # Try partial match on the street name
+                property_match = properties[
+                    (properties['street'].str.lower().str.contains(street_search, na=False)) &
+                    (properties['city'].str.lower() == city.lower()) &
+                    (properties['state'].str.lower() == state.lower()) &
+                    (properties['zip_code'].astype(str) == str(zip_code))
+                ]
+                
+                if not property_match.empty:
+                    logger.info("Found property by fuzzy address match")
+                    property_dict = property_match.iloc[0].to_dict()
+                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                    return property_dict
         except Exception as e:
-            logger.error(f"Error parsing address-based ID: {str(e)}", exc_info=True)
+            logger.warning(f"Error in address-based search: {str(e)}")
             
+        # If we get here, we couldn't find the property
         logger.error(f"Property not found: {property_id}")
         raise HTTPException(
             status_code=404,
-            detail=f"Property {property_id} not found in database"
+            detail=f"Property {property_id} not found. Please check the property ID and try again."
         )
             
     except HTTPException:

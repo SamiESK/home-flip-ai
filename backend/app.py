@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from routes import market_analysis_router, scraper_router
+from routes import market_analysis_router, scraper_router, price_prediction_router
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -42,6 +42,7 @@ app.add_middleware(
 # Include routers
 app.include_router(market_analysis_router)
 app.include_router(scraper_router)
+app.include_router(price_prediction_router)
 
 # Custom response class with CORS headers
 class CORSResponse(JSONResponse):

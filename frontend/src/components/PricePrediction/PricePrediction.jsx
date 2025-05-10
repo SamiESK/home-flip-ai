@@ -127,9 +127,9 @@ const PricePrediction = ({ propertyId }) => {
                 </Typography>
                 <Typography
                   variant="h6"
-                  color={marketTrends.price_change_3m >= 0 ? 'success.main' : 'error.main'}
+                  color={(marketTrends?.price_change_3m ?? 0) >= 0 ? 'success.main' : 'error.main'}
                 >
-                  {marketTrends.price_change_3m.toFixed(1)}%
+                  {(marketTrends?.price_change_3m ?? 0).toFixed(1)}%
                 </Typography>
               </Grid>
               <Grid item xs={6}>
@@ -138,9 +138,9 @@ const PricePrediction = ({ propertyId }) => {
                 </Typography>
                 <Typography
                   variant="h6"
-                  color={marketTrends.price_change_6m >= 0 ? 'success.main' : 'error.main'}
+                  color={(marketTrends?.price_change_6m ?? 0) >= 0 ? 'success.main' : 'error.main'}
                 >
-                  {marketTrends.price_change_6m.toFixed(1)}%
+                  {(marketTrends?.price_change_6m ?? 0).toFixed(1)}%
                 </Typography>
               </Grid>
               <Grid item xs={6}>
@@ -149,9 +149,9 @@ const PricePrediction = ({ propertyId }) => {
                 </Typography>
                 <Typography
                   variant="h6"
-                  color={marketTrends.price_change_12m >= 0 ? 'success.main' : 'error.main'}
+                  color={(marketTrends?.price_change_12m ?? 0) >= 0 ? 'success.main' : 'error.main'}
                 >
-                  {marketTrends.price_change_12m.toFixed(1)}%
+                  {(marketTrends?.price_change_12m ?? 0).toFixed(1)}%
                 </Typography>
               </Grid>
               <Grid item xs={6}>
@@ -159,7 +159,7 @@ const PricePrediction = ({ propertyId }) => {
                   Avg Days on Market
                 </Typography>
                 <Typography variant="h6">
-                  {Math.round(marketTrends.avg_days_on_market)} days
+                  {Math.round(marketTrends?.avg_days_on_market ?? 0)} days
                 </Typography>
               </Grid>
             </Grid>
