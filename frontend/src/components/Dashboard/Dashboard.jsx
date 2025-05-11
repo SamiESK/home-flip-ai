@@ -141,17 +141,11 @@ const Dashboard = () => {
         <div className="right-panel">
           {isGoogleMapsLoaded ? (
             <>
-              {filteredProperties.length > 0 ? (
-                <MapView 
-                  properties={filteredProperties}
-                  selectedProperty={selectedProperty}
-                  onPropertySelect={handlePropertySelect}
-                />
-              ) : (
-                <div className="no-properties-map">
-                  No properties to display on the map
-                </div>
-              )}
+              <MapView 
+                properties={filteredProperties}
+                selectedProperty={selectedProperty}
+                onPropertySelect={handlePropertySelect}
+              />
               {selectedProperty && selectedProperty.property_id && (
                 <div className="market-analysis-container">
                   <MarketAnalysis property={selectedProperty} />

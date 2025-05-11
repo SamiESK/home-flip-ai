@@ -23,7 +23,7 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
               src="${photoUrl}" 
               alt="${property.street}"
               style="width: 100%; height: 150px; object-fit: cover; border-radius: 4px;"
-              onerror="this.parentElement.innerHTML = '<div style=\'width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #666; border-radius: 4px;\'>No Image Available</div>'"
+              onerror="this.parentElement.innerHTML = '<div style=width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #666; border-radius: 4px;>No Image Available</div>'"
             />
           ` : `
             <div style="width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #666; border-radius: 4px;">
@@ -71,7 +71,8 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
 
     // Store current ref values for cleanup
     const currentMarkers = markersRef.current;
-    const currentProperties = propertiesRef.current;
+    const currentProperties = new Set(propertiesRef.current);
+    const currentPropertiesRef = propertiesRef.current;
 
     try {
       console.log('MapView: Initializing with properties:', {
@@ -90,6 +91,11 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
           streetViewControl: true,
           fullscreenControl: true,
         });
+      }
+
+      // If there are no properties, just show the default map view
+      if (!properties || properties.length === 0) {
+        return;
       }
 
       // Create bounds object to fit all markers
@@ -212,7 +218,7 @@ const MapView = ({ properties, selectedProperty, onPropertySelect }) => {
       });
       // Clear the refs
       markersRef.current = {};
-      propertiesRef.current.clear();
+      currentPropertiesRef.clear();
     };
   }, [properties, onPropertySelect, selectedProperty]);
 
