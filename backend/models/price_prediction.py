@@ -34,12 +34,13 @@ class PricePredictor:
             'baths': ['baths', 'full_baths'],
             'latitude': ['latitude', 'lat'],
             'longitude': ['longitude', 'lng'],
-            'lot_size': ['lot_size', 'acre_lot', 'lot_sqft'],
-            'year_built': ['year_built', 'built_year'],
-            'stories': ['stories', 'floors'],
-            'has_garage': ['has_garage', 'garage'],
-            'has_pool': ['has_pool', 'pool'],
-            'has_basement': ['has_basement', 'basement']
+            'lot_size': ['lot_size', 'lot_sqft'],
+            'year_built': ['year_built'],
+            'stories': ['stories'],
+            'has_garage': ['parking_garage'],
+            'has_pool': ['pool'],
+            'has_basement': ['basement'],
+            'days_since_update': ['days_on_mls']  # Map days_on_mls to days_since_update
         }
         
         # Categorical features for encoding
@@ -48,51 +49,78 @@ class PricePredictor:
     def prepare_data(self, df):
         """Prepare data for model training"""
         try:
+            # Create a copy of the dataframe to avoid modifying the original
+            df = df.copy()
+            
             # Map columns to expected names
             for target_col, source_cols in self.column_mapping.items():
                 for source_col in source_cols:
                     if source_col in df.columns:
                         df[target_col] = df[source_col]
                         break
-            # --- Add missing columns with default values ---
-            if 'lot_size' not in df.columns:
-                if 'lot_sqft' in df.columns:
-                    df['lot_size'] = df['lot_sqft']
-                else:
-                    df['lot_size'] = 0
-            for col in ['has_garage', 'has_pool', 'has_basement']:
+            
+            # Add missing columns with default values
+            required_columns = {
+                'sqft': 0,
+                'beds': 0,
+                'baths': 0,
+                'days_on_market': 0,
+                'latitude': 0,
+                'longitude': 0,
+                'zip_code': '00000',
+                'lot_size': 0,
+                'year_built': 2000,  # Default to 2000 if not available
+                'stories': 1,        # Default to 1 story if not available
+                'has_garage': 0,
+                'has_pool': 0,
+                'has_basement': 0
+            }
+            
+            for col, default_value in required_columns.items():
                 if col not in df.columns:
-                    df[col] = 0
+                    df[col] = default_value
+            
             # Calculate derived features
-            df['price_per_sqft'] = df['list_price'] / df['sqft']
+            if 'list_price' in df.columns and 'sqft' in df.columns:
+                df['price_per_sqft'] = df['list_price'] / df['sqft'].replace(0, 1)  # Avoid division by zero
+            else:
+                df['price_per_sqft'] = 0
+                
             if 'last_update' in df.columns:
                 df['days_since_update'] = (pd.Timestamp.now() - pd.to_datetime(df['last_update'], errors='coerce')).dt.days
             else:
                 df['days_since_update'] = 0
+            
             # Handle missing values
             numeric_features = [col for col in self.feature_columns if col not in self.categorical_features]
             categorical_features = self.categorical_features
+            
             # Create preprocessing pipelines
             numeric_transformer = Pipeline(steps=[
                 ('imputer', SimpleImputer(strategy='median')),
                 ('scaler', StandardScaler())
             ])
+            
             categorical_transformer = Pipeline(steps=[
                 ('imputer', SimpleImputer(strategy='most_frequent')),
                 ('onehot', OneHotEncoder(handle_unknown='ignore'))
             ])
+            
             # Combine preprocessing steps
             preprocessor = ColumnTransformer(
                 transformers=[
                     ('num', numeric_transformer, numeric_features),
                     ('cat', categorical_transformer, categorical_features)
                 ])
+            
             # Extract features and target
             X = df[self.feature_columns]
             y = df['list_price']
+            
             # Apply preprocessing
             X_processed = preprocessor.fit_transform(X)
             return X_processed, y, preprocessor
+            
         except Exception as e:
             logger.error(f"Error preparing data: {str(e)}")
             raise
@@ -102,6 +130,19 @@ class PricePredictor:
         try:
             logger.info("Training price prediction model...")
             
+            # Filter out extreme outliers
+            historical_data = historical_data[
+                (historical_data['list_price'] > 0) & 
+                (historical_data['list_price'] < historical_data['list_price'].quantile(0.95))
+            ]
+            
+            # Calculate price per sqft and filter out extreme values
+            historical_data['price_per_sqft'] = historical_data['list_price'] / historical_data['sqft']
+            historical_data = historical_data[
+                (historical_data['price_per_sqft'] > historical_data['price_per_sqft'].quantile(0.05)) &
+                (historical_data['price_per_sqft'] < historical_data['price_per_sqft'].quantile(0.95))
+            ]
+            
             # Prepare data
             X, y, preprocessor = self.prepare_data(historical_data)
             
@@ -110,25 +151,26 @@ class PricePredictor:
                 X, y, test_size=0.2, random_state=42
             )
             
-            # Initialize models
+            # Initialize models with more conservative parameters
             models = {
                 'random_forest': RandomForestRegressor(
-                    n_estimators=200,
-                    max_depth=15,
-                    min_samples_split=5,
-                    min_samples_leaf=2,
+                    n_estimators=100,
+                    max_depth=10,
+                    min_samples_split=10,
+                    min_samples_leaf=4,
                     random_state=42
                 ),
                 'gradient_boosting': GradientBoostingRegressor(
-                    n_estimators=200,
-                    max_depth=10,
-                    learning_rate=0.1,
+                    n_estimators=100,
+                    max_depth=8,
+                    learning_rate=0.05,
+                    subsample=0.8,
                     random_state=42
                 ),
                 'xgboost': xgb.XGBRegressor(
-                    n_estimators=200,
-                    max_depth=10,
-                    learning_rate=0.1,
+                    n_estimators=100,
+                    max_depth=8,
+                    learning_rate=0.05,
                     subsample=0.8,
                     colsample_bytree=0.8,
                     random_state=42
@@ -193,7 +235,8 @@ class PricePredictor:
         try:
             if self.model is None:
                 raise ValueError("Model not trained")
-            # Map property data to expected column names
+            
+            # Map the input data to expected format
             mapped_data = {}
             for target_col, source_cols in self.column_mapping.items():
                 for source_col in source_cols:
@@ -201,45 +244,25 @@ class PricePredictor:
                         mapped_data[target_col] = property_data[source_col]
                         break
                 if target_col not in mapped_data:
-                    # Special handling for lot_size
-                    if target_col == 'lot_size' and 'lot_sqft' in property_data:
-                        mapped_data[target_col] = property_data['lot_sqft']
-                    else:
-                        mapped_data[target_col] = 0  # Default value if not found
-            # Ensure has_garage, has_pool, has_basement are present
-            for col in ['has_garage', 'has_pool', 'has_basement']:
-                if col not in mapped_data:
-                    mapped_data[col] = 0
-            # Calculate derived features
-            mapped_data['price_per_sqft'] = property_data.get('list_price', 0) / mapped_data.get('sqft', 1)
-            last_update = property_data.get('last_update')
-            if last_update:
-                mapped_data['days_since_update'] = (pd.Timestamp.now() - pd.to_datetime(last_update)).days
-            else:
-                mapped_data['days_since_update'] = 0
-            # Add other required columns
+                    mapped_data[target_col] = 0  # Default value if not found
+            
+            # Add required columns that might not be in the mapping
             for col in self.feature_columns:
                 if col not in mapped_data:
-                    mapped_data[col] = property_data.get(col, 0)
-            # Prepare property data
+                    if col in property_data:
+                        mapped_data[col] = property_data[col]
+                    else:
+                        mapped_data[col] = 0  # Default value
+            
+            # Create DataFrame and predict
             features = pd.DataFrame([mapped_data])[self.feature_columns]
-            features_processed = self.preprocessor.transform(features)
-            # Make prediction
-            predicted_price = self.model.predict(features_processed)[0]
-            # Get feature importance
-            if hasattr(self.model, 'feature_importances_'):
-                importance = dict(zip(self.feature_columns, 
-                                   self.model.feature_importances_))
-                # Convert all importance values to float
-                importance = {k: float(v) for k, v in importance.items()}
-            else:
-                importance = {}
-            result = {
-                'predicted_price': float(predicted_price),
-                'feature_importance': importance,
-                'price_per_sqft': float(predicted_price / mapped_data.get('sqft', 1))
+            prediction = self.model.predict(features)[0]
+            
+            return {
+                'predicted_price': float(prediction),
+                'confidence': 0.8  # You might want to calculate this based on model confidence
             }
-            return self.sanitize_json(result)
+            
         except Exception as e:
             logger.error(f"Error predicting price: {str(e)}")
             raise
@@ -355,4 +378,33 @@ class PricePredictor:
             logger.info(f"Model loaded from {path}")
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
-            raise 
+            raise
+
+    def save_properties_to_csv(self, cleaned_properties, zip_code):
+        """Save properties to CSV"""
+        try:
+            # Create data directory if it doesn't exist
+            data_dir = ROOT_DIR / 'data'
+            data_dir.mkdir(exist_ok=True)
+            
+            # Use a timestamp in the filename to preserve historical data
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filepath = data_dir / f'HomeHarvest_properties_{zip_code}_{timestamp}.csv'
+            
+            # Convert to DataFrame
+            new_df = pd.DataFrame(cleaned_properties)
+            
+            # Add a scrape_timestamp column to track when this data was collected
+            new_df['scrape_timestamp'] = datetime.now().isoformat()
+            
+            # Save the new data
+            new_df.to_csv(filepath, index=False, quoting=1)  # QUOTE_ALL
+            logger.info(f"Saved {len(new_df)} properties to {filepath}")
+            
+            # Also maintain a latest file for easy access to most recent data
+            latest_filepath = data_dir / f'HomeHarvest_properties_{zip_code}_latest.csv'
+            new_df.to_csv(latest_filepath, index=False, quoting=1)
+            logger.info(f"Updated latest file with {len(new_df)} properties")
+            
+        except Exception as e:
+            logger.error(f"Error saving properties to CSV: {str(e)}") 

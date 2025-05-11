@@ -110,8 +110,11 @@ const MarketAnalysis = ({ property }) => {
       setError(null);
 
       try {
-        // Use the numeric property ID directly
+        // Use the numeric property_id directly
         const propertyId = property.property_id;
+        console.log('Using property ID:', propertyId);
+        console.log('Property data:', property);
+        
         const response = await axios.get(`${API_BASE_URL}/api/market-analysis/${propertyId}`);
         
         // Log the response data for debugging

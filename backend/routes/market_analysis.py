@@ -30,21 +30,32 @@ def get_latest_data_file() -> Path:
         logger.info(f"Looking for data in: {data_dir}")
         
         if not data_dir.exists():
-            raise FileNotFoundError(f"Data directory not found at {data_dir}")
+            logger.error(f"Data directory not found at {data_dir}")
+            raise FileNotFoundError(f"Data directory not found. Please run a property search first.")
             
         # Get all HomeHarvest CSV files
         files = list(data_dir.glob('HomeHarvest_*.csv'))
         if not files:
-            raise FileNotFoundError(f"No HomeHarvest data files found in {data_dir}")
+            logger.error(f"No HomeHarvest data files found in {data_dir}")
+            raise FileNotFoundError(f"No property data found. Please run a property search first.")
             
         # Sort by modification time and get the most recent
         latest_file = max(files, key=lambda x: x.stat().st_mtime)
         logger.info(f"Using data file: {latest_file}")
         return latest_file
         
+    except FileNotFoundError as e:
+        logger.error(f"Data file error: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Error finding latest data file: {str(e)}")
-        raise
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error accessing property database: {str(e)}"
+        )
 
 async def get_property(property_id: str) -> Dict:
     """Get property details from database"""
@@ -57,110 +68,98 @@ async def get_property(property_id: str) -> Dict:
             logger.info(f"Using data file: {data_file}")
             
             # Read CSV with proper quoting to handle URLs correctly
-            properties = pd.read_csv(data_file, quoting=1)  # QUOTE_ALL
-            logger.info(f"Successfully loaded CSV with {len(properties)} properties")
+            try:
+                properties = pd.read_csv(data_file, quoting=1)  # QUOTE_ALL
+                logger.info(f"Successfully loaded CSV with {len(properties)} properties")
+            except Exception as e:
+                logger.error(f"Error reading CSV file: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error reading property data file: {str(e)}"
+                )
             
+            if properties.empty:
+                logger.error("Property database is empty")
+                raise HTTPException(
+                    status_code=404,
+                    detail="No properties found in the database. Please run a property search first."
+                )
+            
+            # Convert property_id column to string
+            properties['property_id'] = properties['property_id'].astype(str)
+            property_id = str(property_id)
+            
+            # First try exact match
+            property_match = properties[properties['property_id'] == property_id]
+            if not property_match.empty:
+                logger.info(f"Found property by exact ID match: {property_id}")
+                property_dict = property_match.iloc[0].to_dict()
+                property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                return property_dict
+            
+            # If no exact match, try to find by address components
+            if '_' in property_id:
+                parts = property_id.split('_')
+                if len(parts) >= 4:
+                    street = parts[0].replace('-', ' ')
+                    city = parts[1]
+                    state = parts[2]
+                    zip_code = parts[3]
+                    
+                    logger.info(f"Searching by address components:")
+                    logger.info(f"Street: {street}")
+                    logger.info(f"City: {city}")
+                    logger.info(f"State: {state}")
+                    logger.info(f"Zip: {zip_code}")
+                    
+                    # Try exact match
+                    property_match = properties[
+                        (properties['street'].str.lower() == street.lower()) &
+                        (properties['city'].str.lower() == city.lower()) &
+                        (properties['state'].str.lower() == state.lower()) &
+                        (properties['zip_code'].astype(str) == str(zip_code))
+                    ]
+                    
+                    if not property_match.empty:
+                        logger.info("Found property by exact address match")
+                        property_dict = property_match.iloc[0].to_dict()
+                        property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                        return property_dict
+                        
+                    # Try fuzzy match on street name
+                    street_search = ' '.join(part for part in street.split() 
+                                           if not (part.startswith('#') or 
+                                                 part.lower() in ['unit', 'apt', 'apartment'] or 
+                                                 part.isdigit()))
+                    
+                    property_match = properties[
+                        (properties['street'].str.lower().str.contains(street_search.lower(), na=False)) &
+                        (properties['city'].str.lower() == city.lower()) &
+                        (properties['state'].str.lower() == state.lower()) &
+                        (properties['zip_code'].astype(str) == str(zip_code))
+                    ]
+                    
+                    if not property_match.empty:
+                        logger.info("Found property by fuzzy address match")
+                        property_dict = property_match.iloc[0].to_dict()
+                        property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
+                        return property_dict
+            
+            # If we get here, we couldn't find the property
+            logger.error(f"Property not found: {property_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Property {property_id} not found. Please check the property ID and try again."
+            )
+            
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error reading data file: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail=f"Error reading property database: {str(e)}"
             )
-            
-        if properties.empty:
-            logger.error("Property database is empty")
-            raise HTTPException(
-                status_code=404,
-                detail="No properties found in the database."
-            )
-            
-        # First try numeric ID match
-        try:
-            property_match = properties[properties['property_id'].astype(str) == str(property_id)]
-            if not property_match.empty:
-                logger.info("Found property by numeric ID")
-                property_dict = property_match.iloc[0].to_dict()
-                property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                return property_dict
-        except Exception as e:
-            logger.warning(f"Error in numeric ID search: {str(e)}")
-            
-        # Try MLS number match if property_id looks like an MLS number
-        if property_id.isdigit() and len(property_id) >= 8:
-            try:
-                property_match = properties[properties['mls_number'].astype(str) == str(property_id)]
-                if not property_match.empty:
-                    logger.info("Found property by MLS number")
-                    property_dict = property_match.iloc[0].to_dict()
-                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                    return property_dict
-            except Exception as e:
-                logger.warning(f"Error in MLS number search: {str(e)}")
-            
-        # If no match, try parsing address-based ID
-        try:
-            # Split on underscores first
-            parts = property_id.split('_')
-            if len(parts) >= 4:
-                # The first part contains the street address (may contain hyphens)
-                street = parts[0]
-                city = parts[1]
-                state = parts[2]
-                # The zip code might have an MLS number after it
-                zip_code = parts[3].split('_')[0]  # Take just the zip code part
-                
-                logger.info(f"\nParsed address components:")
-                logger.info(f"Street: {street}")
-                logger.info(f"City: {city}")
-                logger.info(f"State: {state}")
-                logger.info(f"Zip: {zip_code}")
-                
-                # Try exact match first (with hyphens replaced by spaces)
-                property_match = properties[
-                    (properties['street'].str.lower() == street.replace('-', ' ').lower()) &
-                    (properties['city'].str.lower() == city.lower()) &
-                    (properties['state'].str.lower() == state.lower()) &
-                    (properties['zip_code'].astype(str) == str(zip_code))
-                ]
-                
-                if not property_match.empty:
-                    logger.info("Found property by exact address match")
-                    property_dict = property_match.iloc[0].to_dict()
-                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                    return property_dict
-                    
-                # Try fuzzy match on street name
-                street_search = street.replace('-', ' ').lower()
-                
-                # Remove unit/apt numbers for better matching
-                street_parts = street_search.split(' ')
-                street_search = ' '.join(part for part in street_parts 
-                                       if not (part.startswith('#') or 
-                                             part.lower() in ['unit', 'apt', 'apartment'] or 
-                                             part.isdigit()))
-                
-                # Try partial match on the street name
-                property_match = properties[
-                    (properties['street'].str.lower().str.contains(street_search, na=False)) &
-                    (properties['city'].str.lower() == city.lower()) &
-                    (properties['state'].str.lower() == state.lower()) &
-                    (properties['zip_code'].astype(str) == str(zip_code))
-                ]
-                
-                if not property_match.empty:
-                    logger.info("Found property by fuzzy address match")
-                    property_dict = property_match.iloc[0].to_dict()
-                    property_dict = {k: (None if pd.isna(v) else v) for k, v in property_dict.items()}
-                    return property_dict
-        except Exception as e:
-            logger.warning(f"Error in address-based search: {str(e)}")
-            
-        # If we get here, we couldn't find the property
-        logger.error(f"Property not found: {property_id}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Property {property_id} not found. Please check the property ID and try again."
-        )
             
     except HTTPException:
         raise
@@ -177,6 +176,14 @@ async def get_comparable_properties(target_property: Dict) -> List[Dict]:
         logger.info(f"\n{'='*80}\nFetching comparable properties for property:")
         logger.info(f"Target property: {json.dumps(target_property, indent=2)}")
         
+        # Get target property's zip code
+        target_zip = target_property.get('zip_code')
+        if not target_zip:
+            logger.error("Target property missing zip code")
+            return []
+            
+        logger.info(f"Looking for comparables in zip code: {target_zip}")
+        
         # Load property data
         data_dir = Path(__file__).parent.parent.parent / 'data'
         logger.info(f"Looking for data in: {data_dir}")
@@ -192,161 +199,125 @@ async def get_comparable_properties(target_property: Dict) -> List[Dict]:
         # Read CSV with proper quoting to handle URLs correctly
         df = pd.read_csv(latest_file, quoting=1)
         logger.info(f"Loaded {len(df)} properties for comparables search")
-        logger.info(f"CSV columns: {df.columns.tolist()}")
         
+        # Log unique status values and their counts
+        status_counts = df['status'].value_counts()
+        logger.info(f"Status distribution in data:\n{status_counts}")
+        
+        # Filter by zip code first
+        df = df[df['zip_code'].astype(str) == str(target_zip)]
+        logger.info(f"Found {len(df)} properties in zip code {target_zip}")
+        
+        # Log status distribution after zip code filter
+        status_counts_zip = df['status'].value_counts()
+        logger.info(f"Status distribution in zip code {target_zip}:\n{status_counts_zip}")
+        
+        # Filter by status (only sold properties)
+        # Include more variations of sold status
+        sold_statuses = ['SOLD', 'CLOSED', 'SOLD/CLOSED', 'SOLD CLOSED', 'CLOSED/SOLD', 'SOLD PENDING', 'PENDING SOLD']
+        df = df[df['status'].str.upper().isin(sold_statuses)]
+        logger.info(f"Found {len(df)} sold properties in zip code {target_zip}")
+        
+        if df.empty:
+            logger.warning(f"No sold properties found in zip code {target_zip}")
+            return []
+            
         # Map column names to our expected format
         column_mapping = {
             'list_price': 'list_price',
             'sqft': 'sqft',
             'beds': 'beds',
-            'full_baths': 'baths',
-            'days_on_mls': 'days_on_market',
+            'baths': 'baths',
             'street': 'street',
             'city': 'city',
             'state': 'state',
             'zip_code': 'zip_code',
-            'property_id': 'property_id',
-            'latitude': 'latitude',
-            'longitude': 'longitude',
+            'days_on_market': 'days_on_market',
             'primary_photo': 'primary_photo',
             'alt_photos': 'alt_photos',
             'property_url': 'property_url',
             'status': 'status',
-            'sold_price': 'sold_price'
+            'latitude': 'latitude',
+            'longitude': 'longitude'
         }
         
-        # Rename columns according to mapping
-        df = df.rename(columns={v: k for k, v in column_mapping.items() if v in df.columns})
-        logger.info(f"Columns after mapping: {df.columns.tolist()}")
+        # Rename columns if they exist
+        for old_col, new_col in column_mapping.items():
+            if old_col in df.columns:
+                df = df.rename(columns={old_col: new_col})
+                
+        # Convert to list of dictionaries
+        properties = df.to_dict('records')
         
-        # Include both PENDING and ACTIVE properties
-        df = df[df['status'].str.upper().isin(['ACTIVE', 'PENDING'])]
-        logger.info(f"Found {len(df)} ACTIVE/PENDING properties")
-        
-        # Convert numeric columns
-        numeric_columns = ['list_price', 'sqft', 'beds', 'baths', 'days_on_market', 'sold_price']
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                logger.info(f"Converted {col} to numeric. Sample values: {df[col].head()}")
-        
-        # Filter out properties with missing essential data
-        before_count = len(df)
-        df = df.dropna(subset=['list_price', 'sqft', 'beds'])
-        after_count = len(df)
-        logger.info(f"Filtered out {before_count - after_count} properties with missing data")
-        
-        # Filter properties in same city and similar price range
-        if target_property.get('city'):
-            df = df[df['city'].str.lower() == target_property['city'].lower()]
-            logger.info(f"Found {len(df)} properties in {target_property['city']}")
-        
-        target_price = float(target_property.get('list_price', 0))
-        if target_price > 0:
-            price_range = (target_price * 0.7, target_price * 1.3)  # ±30% price range
-            # Use sold_price for SOLD properties, list_price for PENDING
-            df['comparison_price'] = df.apply(
-                lambda x: float(x['sold_price']) if pd.notna(x['sold_price']) else float(x['list_price']),
-                axis=1
-            )
-            df = df[
-                (df['comparison_price'] >= price_range[0]) & 
-                (df['comparison_price'] <= price_range[1])
-            ]
-            logger.info(f"Found {len(df)} properties in price range {price_range}")
-        
-        # Exclude the target property from comparables
-        if 'property_id' in df.columns and 'property_id' in target_property:
-            df = df[df['property_id'].astype(str) != str(target_property['property_id'])]
-            logger.info(f"Excluded target property, {len(df)} properties remaining")
-        
-        # Calculate similarity scores
-        target_sqft = float(target_property.get('sqft', 0))
-        target_price = float(target_property.get('list_price', 0))
-        target_beds = float(target_property.get('beds', 0))
-        target_baths = float(target_property.get('full_baths', 1.0))
-        
-        if target_sqft == 0 or target_price == 0:
-            logger.warning("Target property missing essential data (sqft or price)")
-            return []
-            
-        logger.info(f"Target property metrics:")
-        logger.info(f"- Price: ${target_price:,.2f}")
-        logger.info(f"- Sqft: {target_sqft:,.0f}")
-        logger.info(f"- Beds: {target_beds}")
-        logger.info(f"- Baths: {target_baths}")
-        
-        # Calculate similarity scores for each property
-        df['similarity_score'] = df.apply(
-            lambda row: calculate_similarity_score(
-                row,
-                target_sqft,
-                target_price,
-                target_beds,
-                target_baths
-            ),
-            axis=1
-        )
-        
-        # Get top 10 most similar properties
-        comparable_properties = df.nlargest(10, 'similarity_score').to_dict('records')
-        logger.info(f"Found {len(comparable_properties)} comparable properties")
-        
-        # Clean up the comparable properties
-        cleaned_comparables = []
-        for prop in comparable_properties:
-            # Parse photo URLs
-            photos = []
-            if prop.get('primary_photo'):
-                photos.append(prop['primary_photo'])
-            
-            if prop.get('alt_photos'):
-                try:
-                    # Handle comma-separated URLs
-                    if isinstance(prop['alt_photos'], str):
+        # Clean up the properties
+        cleaned_properties = []
+        for prop in properties:
+            try:
+                # Parse photo URLs
+                photos = []
+                if prop.get('primary_photo'):
+                    photos.append(prop['primary_photo'])
+                
+                if prop.get('alt_photos'):
+                    if isinstance(prop['alt_photos'], list):
+                        photos.extend(prop['alt_photos'])
+                    elif isinstance(prop['alt_photos'], str):
                         alt_photos = [url.strip() for url in prop['alt_photos'].split(',') if url.strip()]
                         photos.extend(alt_photos)
-                except Exception as e:
-                    logger.warning(f"Error parsing alt_photos: {str(e)}")
-            
-            # Filter out invalid photo URLs
-            photos = [
-                url for url in photos 
-                if url and isinstance(url, str) and (
-                    url.startswith('http://') or 
-                    url.startswith('https://')
-                )
-            ]
-            
-            # Use sold_price if available, otherwise list_price
-            final_price = float(prop['sold_price']) if pd.notna(prop.get('sold_price')) else float(prop['list_price'])
-            
-            cleaned_prop = {
-                'property_id': prop.get('property_id'),
-                'list_price': final_price,  # Use the final price (sold or list)
-                'sqft': float(prop['sqft']) if pd.notna(prop.get('sqft')) else None,
-                'beds': float(prop['beds']) if pd.notna(prop.get('beds')) else None,
-                'baths': float(prop['baths']) if pd.notna(prop.get('baths')) else None,
-                'street': prop.get('street'),
-                'city': prop.get('city'),
-                'state': prop.get('state'),
-                'zip_code': prop.get('zip_code'),
-                'days_on_market': int(prop['days_on_market']) if pd.notna(prop.get('days_on_market')) else 0,
-                'similarity_score': float(prop['similarity_score']) if pd.notna(prop.get('similarity_score')) else 0,
-                'latitude': float(prop['latitude']) if pd.notna(prop.get('latitude')) else None,
-                'longitude': float(prop['longitude']) if pd.notna(prop.get('longitude')) else None,
-                'photos': photos,
-                'property_url': prop.get('property_url'),
-                'status': prop.get('status', '').upper(),
-                'sold_price': float(prop['sold_price']) if pd.notna(prop.get('sold_price')) else None
-            }
-            cleaned_comparables.append(cleaned_prop)
-            logger.info(f"Comparable property: {json.dumps(cleaned_prop, indent=2)}")
-        
-        return cleaned_comparables
+                
+                # Filter out invalid photo URLs
+                photos = [
+                    url for url in photos 
+                    if url and isinstance(url, str) and (
+                        url.startswith('http://') or 
+                        url.startswith('https://')
+                    )
+                ]
+                
+                # Clean up numeric values
+                list_price = float(prop['list_price']) if prop.get('list_price') else None
+                sqft = float(prop['sqft']) if prop.get('sqft') else None
+                beds = float(prop['beds']) if prop.get('beds') else None
+                baths = float(prop['baths']) if prop.get('baths') else None
+                days_on_market = int(prop['days_on_market']) if prop.get('days_on_market') else 0
+                
+                # Parse coordinates
+                lat = float(prop['latitude']) if prop.get('latitude') else None
+                lng = float(prop['longitude']) if prop.get('longitude') else None
+                
+                cleaned_prop = {
+                    'property_id': prop.get('property_id'),
+                    'list_price': list_price or 0,
+                    'sqft': sqft or 0,
+                    'beds': beds or 0,
+                    'baths': baths or 0,
+                    'full_baths': baths or 0,
+                    'street': prop.get('street', ''),
+                    'city': prop.get('city', ''),
+                    'state': prop.get('state', ''),
+                    'zip_code': prop.get('zip_code', ''),
+                    'days_on_market': days_on_market or 0,
+                    'photos': photos or [],
+                    'property_url': prop.get('property_url', ''),
+                    'status': prop.get('status', '').upper(),
+                    'latitude': lat,
+                    'longitude': lng
+                }
+                
+                # Add property if it has valid coordinate information
+                if (cleaned_prop['latitude'] is not None and cleaned_prop['longitude'] is not None and
+                    -90 <= cleaned_prop['latitude'] <= 90 and -180 <= cleaned_prop['longitude'] <= 180):
+                    cleaned_properties.append(cleaned_prop)
+                    
+            except Exception as e:
+                logger.warning(f"Error processing property: {str(e)}")
+                continue
+                
+        logger.info(f"Returning {len(cleaned_properties)} cleaned comparable properties")
+        return cleaned_properties
         
     except Exception as e:
-        logger.error(f"Error generating comparable properties: {str(e)}", exc_info=True)
+        logger.error(f"Error getting comparable properties: {str(e)}", exc_info=True)
         return []
 
 def calculate_similarity_score(property_data, target_sqft, target_price, target_beds, target_baths):

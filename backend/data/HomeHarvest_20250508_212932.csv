@@ -1,3 +1,0 @@
-property_id,price,sqft,beds,baths,street,city,state,zip_code,days_on_market,status,list_date,photos,zillow_link,is_good_flip,roi
-1001,425000,2240,4,2.5,8452 Gordon Ct,Plymouth,MN,55446,45,Active,2024-05-01,https://ap.rdcpix.com/6b6a0b5931dd7c4d0f4b6dc4dce3c8d6l-m3203251265od-w1024_h768.jpg,https://www.realtor.com/realestateandhomes-detail/8452-Gordon-Ct_Plymouth_MN_55446,False,0
-1002,399900,2100,4,2.0,6734 Lakewood Dr,Plymouth,MN,55446,30,Active,2024-05-15,https://ap.rdcpix.com/9f38c1bead9a0f58bcd203d0842efde4l-m3751361455od-w1024_h768.jpg,https://www.realtor.com/realestateandhomes-detail/6734-Lakewood-Dr_Plymouth_MN_55446,True,15

@@ -2,6 +2,10 @@ from typing import List, Dict, Optional
 import numpy as np
 from datetime import datetime
 import logging
+import os
+import pickle
+import pandas as pd
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,21 @@ def safe_division(numerator: float, denominator: float, default: float = None) -
 
 class MarketAnalyzer:
     def __init__(self):
+        self.min_profit_margin = 0.20  # 20% minimum profit margin
+        self.max_repair_cost_percentage = 0.30  # Maximum 30% of property value for repairs
+        self.estimated_holding_months = 6  # Estimated time to complete flip
+        self.estimated_selling_costs_percentage = 0.10  # 10% for agent fees, closing costs, etc.
+        
+        # Load the house-flipper model
+        try:
+            ROOT_DIR = Path(__file__).parent.parent.parent
+            model_path = os.path.join(ROOT_DIR, 'models', 'flip_score_model.pkl')
+            with open(model_path, 'rb') as f:
+                self.flip_model = pickle.load(f)
+        except Exception as e:
+            logger.error(f"Error loading house-flipper model: {str(e)}")
+            self.flip_model = None
+
         self.analysis_types = {
             'price': {
                 'icon': '💰',
@@ -45,46 +64,379 @@ class MarketAnalyzer:
         }
 
     def generate_analysis(self, target_property: Dict, comparable_properties: List[Dict]) -> Dict:
-        """
-        Generate a standardized analysis for a property
-        """
-        analysis = []
-        market_metrics = self._calculate_market_metrics(comparable_properties)
+        """Generate comprehensive market analysis for a potential flip property"""
+        try:
+            # Calculate basic market metrics
+            market_metrics = self.calculate_market_metrics(comparable_properties)
+            
+            # Calculate flip-specific metrics
+            flip_analysis = self.analyze_flip_potential(target_property, comparable_properties, market_metrics)
+            
+            # Get house-flipper prediction
+            flip_prediction = self.get_flip_prediction(target_property)
+            
+            # Generate detailed analysis points
+            analysis_points = self.generate_analysis_points(target_property, flip_analysis, market_metrics, flip_prediction)
+            
+            return {
+                'analysis': analysis_points,
+                'market_metrics': market_metrics,
+                'flip_analysis': flip_analysis,
+                'flip_prediction': flip_prediction
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating analysis: {str(e)}", exc_info=True)
+            raise
+
+    def calculate_market_metrics(self, comparable_properties: List[Dict]) -> Dict:
+        """Calculate detailed market metrics from comparable properties"""
+        if not comparable_properties:
+            return {
+                'avg_price': None,
+                'median_price': None,
+                'avg_price_per_sqft': None,
+                'median_price_per_sqft': None,
+                'avg_days_on_market': None,
+                'avg_sqft': None,
+                'price_trend': None,
+                'absorption_rate': None
+            }
+            
+        try:
+            # Basic metrics
+            prices = [p['list_price'] for p in comparable_properties if p.get('list_price')]
+            sqft_values = [p['sqft'] for p in comparable_properties if p.get('sqft')]
+            days_on_market = [p['days_on_market'] for p in comparable_properties if p.get('days_on_market')]
+            
+            # Calculate price per square foot
+            price_per_sqft = []
+            for prop in comparable_properties:
+                if prop.get('list_price') and prop.get('sqft'):
+                    price_per_sqft.append(prop['list_price'] / prop['sqft'])
+            
+            # Calculate trends (if we have enough data)
+            price_trend = self.calculate_trend(prices) if len(prices) > 1 else None
+            
+            # Calculate absorption rate (properties sold per month)
+            if days_on_market:
+                avg_days = sum(days_on_market) / len(days_on_market)
+                absorption_rate = 30 / avg_days if avg_days > 0 else None
+            else:
+                absorption_rate = None
+            
+            return {
+                'avg_price': sum(prices) / len(prices) if prices else None,
+                'median_price': sorted(prices)[len(prices)//2] if prices else None,
+                'avg_price_per_sqft': sum(price_per_sqft) / len(price_per_sqft) if price_per_sqft else None,
+                'median_price_per_sqft': sorted(price_per_sqft)[len(price_per_sqft)//2] if price_per_sqft else None,
+                'avg_days_on_market': sum(days_on_market) / len(days_on_market) if days_on_market else None,
+                'avg_sqft': sum(sqft_values) / len(sqft_values) if sqft_values else None,
+                'price_trend': price_trend,
+                'absorption_rate': absorption_rate
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating market metrics: {str(e)}")
+            return {}
+
+    def analyze_flip_potential(self, target_property: Dict, comparable_properties: List[Dict], market_metrics: Dict) -> Dict:
+        """Analyze the potential for a successful flip"""
+        try:
+            target_price = target_property.get('list_price', 0)
+            target_sqft = target_property.get('sqft', 0)
+            
+            if not target_price or not target_sqft or not comparable_properties:
+                return {
+                    'estimated_arv': None,
+                    'estimated_repair_costs': None,
+                    'estimated_profit': None,
+                    'roi': None,
+                    'risk_score': None,
+                    'confidence_score': None
+                }
+            
+            # Calculate After Repair Value (ARV)
+            avg_price_per_sqft = market_metrics.get('avg_price_per_sqft', 0)
+            estimated_arv = target_sqft * avg_price_per_sqft if avg_price_per_sqft else None
+            
+            # Estimate repair costs (simplified for now)
+            # In a real system, this would be based on property condition assessment
+            estimated_repair_costs = target_price * self.max_repair_cost_percentage
+            
+            # Calculate potential profit
+            if estimated_arv:
+                estimated_profit = estimated_arv - target_price - estimated_repair_costs
+                roi = (estimated_profit / (target_price + estimated_repair_costs)) * 100
+            else:
+                estimated_profit = None
+                roi = None
+            
+            # Calculate risk score (0-100, higher is riskier)
+            risk_factors = []
+            
+            # Price risk
+            if market_metrics.get('price_trend'):
+                if market_metrics['price_trend'] < 0:
+                    risk_factors.append(30)  # High risk if prices are declining
+                elif market_metrics['price_trend'] < 0.05:
+                    risk_factors.append(15)  # Medium risk if prices are flat
+                else:
+                    risk_factors.append(5)  # Low risk if prices are rising
+            
+            # Market absorption risk
+            if market_metrics.get('absorption_rate'):
+                if market_metrics['absorption_rate'] < 0.5:
+                    risk_factors.append(30)  # High risk if market is slow
+                elif market_metrics['absorption_rate'] < 1:
+                    risk_factors.append(15)  # Medium risk if market is moderate
+                else:
+                    risk_factors.append(5)  # Low risk if market is fast
+            
+            # Profit margin risk
+            if roi is not None:
+                if roi < 10:
+                    risk_factors.append(40)  # Very high risk if low profit
+                elif roi < 20:
+                    risk_factors.append(20)  # High risk if moderate profit
+                else:
+                    risk_factors.append(5)  # Low risk if good profit
+            
+            risk_score = sum(risk_factors) / len(risk_factors) if risk_factors else 50
+            
+            # Calculate confidence score (0-100, higher is more confident)
+            confidence_factors = []
+            
+            # Data quality confidence
+            if len(comparable_properties) >= 5:
+                confidence_factors.append(25)  # Good number of comparables
+            elif len(comparable_properties) >= 3:
+                confidence_factors.append(15)  # Moderate number of comparables
+            else:
+                confidence_factors.append(5)  # Few comparables
+            
+            # Market trend confidence
+            if market_metrics.get('price_trend') is not None:
+                confidence_factors.append(25)  # Have price trend data
+            
+            # Absorption rate confidence
+            if market_metrics.get('absorption_rate') is not None:
+                confidence_factors.append(25)  # Have absorption rate data
+            
+            # Profit margin confidence
+            if roi is not None:
+                confidence_factors.append(25)  # Have ROI calculation
+            
+            confidence_score = sum(confidence_factors) if confidence_factors else 0
+            
+            return {
+                'estimated_arv': estimated_arv,
+                'estimated_repair_costs': estimated_repair_costs,
+                'estimated_profit': estimated_profit,
+                'roi': roi,
+                'risk_score': risk_score,
+                'confidence_score': confidence_score
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing flip potential: {str(e)}")
+            return {}
+
+    def get_flip_prediction(self, property_data: Dict) -> Dict:
+        """Get prediction from house-flipper model"""
+        try:
+            if not self.flip_model:
+                return {
+                    'is_good_flip': None,
+                    'confidence': None,
+                    'model_available': False
+                }
+            
+            # Convert property data to model format
+            input_data = pd.DataFrame([{
+                'price': float(property_data['list_price']),
+                'sqft': float(property_data['sqft']),
+                'beds': int(property_data['beds']),
+                'baths': int(property_data['baths']),
+                'days_on_market': int(property_data['days_on_market'])
+            }])
+            
+            # Make prediction
+            prediction = self.flip_model.predict(input_data)[0]
+            
+            # Calculate confidence
+            if prediction > 0:
+                confidence = 60 + (40 / (1 + abs(prediction)))
+            else:
+                confidence = 40 / (1 + abs(prediction))
+            
+            return {
+                'is_good_flip': bool(prediction > 0),
+                'confidence': round(confidence),
+                'model_available': True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting flip prediction: {str(e)}")
+            return {
+                'is_good_flip': None,
+                'confidence': None,
+                'model_available': False
+            }
+
+    def generate_analysis_points(self, target_property: Dict, flip_analysis: Dict, market_metrics: Dict, flip_prediction: Dict) -> List[Dict]:
+        """Generate detailed analysis points for the property"""
+        analysis_points = []
         
-        # Price Analysis
-        price_analysis = self._analyze_price(target_property, market_metrics)
-        if price_analysis:
-            analysis.append(price_analysis)
+        try:
+            # Add house-flipper prediction if available
+            if flip_prediction.get('model_available'):
+                if flip_prediction['is_good_flip']:
+                    analysis_points.append({
+                        'type': 'ai_prediction',
+                        'title': 'AI Flip Recommendation',
+                        'description': f"Based on historical data analysis, this property has a {flip_prediction['confidence']}% chance of being a successful flip.",
+                        'impact': 'positive'
+                    })
+                else:
+                    analysis_points.append({
+                        'type': 'ai_prediction',
+                        'title': 'AI Flip Warning',
+                        'description': f"Based on historical data analysis, this property has a {flip_prediction['confidence']}% chance of being an unsuccessful flip.",
+                        'impact': 'negative'
+                    })
+            
+            # Market Overview
+            if market_metrics.get('price_trend') is not None:
+                trend = market_metrics['price_trend']
+                if trend > 0.05:
+                    analysis_points.append({
+                        'type': 'market_trend',
+                        'title': 'Strong Market Growth',
+                        'description': f'Property values in this area are increasing at a rate of {trend:.1%} per month.',
+                        'impact': 'positive'
+                    })
+                elif trend > 0:
+                    analysis_points.append({
+                        'type': 'market_trend',
+                        'title': 'Stable Market',
+                        'description': 'Property values in this area are stable with slight growth.',
+                        'impact': 'neutral'
+                    })
+                else:
+                    analysis_points.append({
+                        'type': 'market_trend',
+                        'title': 'Declining Market',
+                        'description': f'Property values in this area are decreasing at a rate of {abs(trend):.1%} per month.',
+                        'impact': 'negative'
+                    })
+            
+            # ROI Analysis
+            if flip_analysis.get('roi') is not None:
+                roi = flip_analysis['roi']
+                if roi >= 30:
+                    analysis_points.append({
+                        'type': 'roi',
+                        'title': 'High ROI Potential',
+                        'description': f'Estimated ROI of {roi:.1f}% exceeds the target of 20%.',
+                        'impact': 'positive'
+                    })
+                elif roi >= 20:
+                    analysis_points.append({
+                        'type': 'roi',
+                        'title': 'Good ROI Potential',
+                        'description': f'Estimated ROI of {roi:.1f}% meets the target of 20%.',
+                        'impact': 'positive'
+                    })
+                else:
+                    analysis_points.append({
+                        'type': 'roi',
+                        'title': 'Low ROI Potential',
+                        'description': f'Estimated ROI of {roi:.1f}% is below the target of 20%.',
+                        'impact': 'negative'
+                    })
+            
+            # Risk Assessment
+            if flip_analysis.get('risk_score') is not None:
+                risk_score = flip_analysis['risk_score']
+                if risk_score >= 70:
+                    analysis_points.append({
+                        'type': 'risk',
+                        'title': 'High Risk Investment',
+                        'description': 'This property presents significant risks for flipping.',
+                        'impact': 'negative'
+                    })
+                elif risk_score >= 50:
+                    analysis_points.append({
+                        'type': 'risk',
+                        'title': 'Moderate Risk Investment',
+                        'description': 'This property presents moderate risks for flipping.',
+                        'impact': 'neutral'
+                    })
+                else:
+                    analysis_points.append({
+                        'type': 'risk',
+                        'title': 'Low Risk Investment',
+                        'description': 'This property presents relatively low risks for flipping.',
+                        'impact': 'positive'
+                    })
+            
+            # Market Absorption
+            if market_metrics.get('absorption_rate') is not None:
+                rate = market_metrics['absorption_rate']
+                if rate >= 1:
+                    analysis_points.append({
+                        'type': 'absorption',
+                        'title': 'Fast-Moving Market',
+                        'description': f'Properties in this area sell quickly (average {30/rate:.1f} days).',
+                        'impact': 'positive'
+                    })
+                elif rate >= 0.5:
+                    analysis_points.append({
+                        'type': 'absorption',
+                        'title': 'Moderate Market',
+                        'description': f'Properties in this area sell at a moderate pace (average {30/rate:.1f} days).',
+                        'impact': 'neutral'
+                    })
+                else:
+                    analysis_points.append({
+                        'type': 'absorption',
+                        'title': 'Slow-Moving Market',
+                        'description': f'Properties in this area sell slowly (average {30/rate:.1f} days).',
+                        'impact': 'negative'
+                    })
+            
+            return analysis_points
+            
+        except Exception as e:
+            logger.error(f"Error generating analysis points: {str(e)}")
+            return []
 
-        # Size Analysis
-        size_analysis = self._analyze_size(target_property, market_metrics)
-        if size_analysis:
-            analysis.append(size_analysis)
-
-        # Market Timing Analysis
-        timing_analysis = self._analyze_market_timing(target_property, market_metrics)
-        if timing_analysis:
-            analysis.append(timing_analysis)
-
-        # Location Analysis
-        location_analysis = self._analyze_location(target_property, comparable_properties)
-        if location_analysis:
-            analysis.append(location_analysis)
-
-        # Historical Analysis
-        historical_analysis = self._analyze_historical_performance(target_property, comparable_properties)
-        if historical_analysis:
-            analysis.append(historical_analysis)
-
-        # Overall Assessment
-        overall_analysis = self._generate_overall_assessment(analysis)
-        analysis.append(overall_analysis)
-
-        return {
-            'analysis': analysis,
-            'market_metrics': market_metrics,
-            'comparable_properties': self._format_comparable_properties(comparable_properties)
-        }
+    def calculate_trend(self, values: List[float]) -> float:
+        """Calculate the trend of a series of values"""
+        if len(values) < 2:
+            return 0
+            
+        try:
+            # Simple linear regression
+            x = range(len(values))
+            y = values
+            
+            n = len(x)
+            sum_x = sum(x)
+            sum_y = sum(y)
+            sum_xy = sum(i * j for i, j in zip(x, y))
+            sum_xx = sum(i * i for i in x)
+            
+            # Calculate slope
+            slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x)
+            
+            # Convert to monthly rate
+            return slope / (sum_y / n) if sum_y != 0 else 0
+            
+        except Exception as e:
+            logger.error(f"Error calculating trend: {str(e)}")
+            return 0
 
     def _calculate_market_metrics(self, comparable_properties: List[Dict]) -> Dict:
         """Calculate key market metrics from comparable properties"""

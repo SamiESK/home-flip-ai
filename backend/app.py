@@ -11,6 +11,7 @@ import os
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 from routes import market_analysis_router, scraper_router, price_prediction_router
+from routes.market_analysis import get_property, get_comparable_properties
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -73,9 +74,28 @@ def load_property_data():
         
         if not property_files:
             raise HTTPException(status_code=404, detail='No property data found')
-            
-        latest_file = max(property_files, key=lambda x: x.stat().st_mtime)
-        return pd.read_csv(latest_file)
+        
+        # Load all property files
+        all_properties = []
+        for file in property_files:
+            try:
+                df = pd.read_csv(file)
+                all_properties.append(df)
+            except Exception as e:
+                logger.error(f"Error reading file {file}: {str(e)}")
+                continue
+        
+        if not all_properties:
+            raise HTTPException(status_code=404, detail='No valid property data found')
+        
+        # Combine all data
+        combined_df = pd.concat(all_properties, ignore_index=True)
+        
+        # Remove duplicates based on property_id, keeping the most recent entry
+        combined_df = combined_df.sort_values('scrape_timestamp').drop_duplicates(subset=['property_id'], keep='last')
+        
+        return combined_df
+        
     except Exception as e:
         logger.error(f"Error loading property data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
