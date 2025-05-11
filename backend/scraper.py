@@ -43,10 +43,17 @@ def scrape_properties(zip_code: str, max_price: float) -> list:
             properties = scrape_property(
                 location=zip_code,
                 listing_type="for_sale",
-                limit=10000
+                limit=10000,
+                property_type=["single_family", "condos", "townhomes", "multi_family"]
             )
             if isinstance(properties, pd.DataFrame):
                 logger.info(f"HomeHarvest returned {len(properties)} properties")
+                # Filter out land properties if property_type column exists
+                if 'property_type' in properties.columns:
+                    properties = properties[~properties['property_type'].str.lower().isin(['land', 'lot', 'vacant land'])]
+                    logger.info(f"After filtering out land properties: {len(properties)} properties")
+                else:
+                    logger.info("No property_type column found in the data, skipping land property filter")
             else:
                 logger.warning("HomeHarvest did not return a DataFrame")
             
