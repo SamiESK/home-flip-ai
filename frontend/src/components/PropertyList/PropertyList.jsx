@@ -3,6 +3,9 @@ import PropertyCard from '../PropertyCard/PropertyCard';
 import './PropertyList.css';
 
 const PropertyList = ({ properties, onPropertySelect, selectedProperty }) => {
+  // Sort properties by price in descending order
+  const sortedProperties = [...properties].sort((a, b) => b.list_price - a.list_price);
+
   const handlePropertyClick = (property) => {
     console.log('Property clicked in PropertyList:', property);
     if (!property || !property.property_id) {
@@ -23,10 +26,10 @@ const PropertyList = ({ properties, onPropertySelect, selectedProperty }) => {
   return (
     <div className="property-list">
       <div className="properties-header">
-        Found {properties.length} properties
+        Found {sortedProperties.length} properties
       </div>
       <div className="properties-grid">
-        {properties.map((property, index) => (
+        {sortedProperties.map((property, index) => (
           <div key={`${property.property_id}-${index}`} className="property-wrapper">
             <PropertyCard 
               property={property}

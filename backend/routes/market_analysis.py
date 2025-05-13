@@ -10,6 +10,8 @@ import json
 import traceback
 import glob
 import os
+from models.property_comparator import PropertyComparator
+from data.property_data import get_property, get_all_properties
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 market_analyzer = MarketAnalyzer()
+property_comparator = PropertyComparator()
 
 __all__ = ['router', 'get_comparable_properties']
 
@@ -376,43 +379,27 @@ def calculate_similarity_score(property_data, target_sqft, target_price, target_
 @router.get("/api/market-analysis/{property_id}")
 async def get_market_analysis(property_id: str):
     """Get market analysis for a property"""
-    logger.info(f'Received market analysis request for property ID: {property_id}')
-    
     try:
         # Get target property
-        logger.info("Attempting to get property details...")
         target_property = await get_property(property_id)
         if not target_property:
-            logger.error(f'Property not found: {property_id}')
             raise HTTPException(status_code=404, detail=f"Property {property_id} not found")
-        logger.info(f"Found property: {target_property.get('street', 'Unknown Address')}")
         
-        # Get comparable properties
-        logger.info("Fetching comparable properties...")
-        comparable_properties = await get_comparable_properties(target_property)
-        logger.info(f'Found {len(comparable_properties)} comparable properties')
+        # Get all properties for comparison
+        all_properties = await get_all_properties()
         
-        # Generate analysis using the standardized analyzer
-        logger.info("Generating market analysis...")
-        try:
-            analysis_result = market_analyzer.generate_analysis(target_property, comparable_properties)
-            logger.info('Generated property analysis')
-        except Exception as e:
-            logger.error(f"Error generating analysis: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error generating analysis: {str(e)}"
-            )
+        # Find similar properties
+        similar_properties = property_comparator.find_similar_properties(target_property, all_properties)
+        
+        # Generate analysis
+        analysis = property_comparator.generate_analysis(target_property, similar_properties)
         
         return {
-            'property': target_property,
-            'analysis': analysis_result['analysis'],
-            'market_metrics': analysis_result['market_metrics'],
-            'comparable_properties': comparable_properties
+            "property": target_property,
+            "similar_properties": similar_properties,
+            "analysis": analysis
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f'Error in market analysis: {str(e)}', exc_info=True)
+        logger.error(f"Error in market analysis: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

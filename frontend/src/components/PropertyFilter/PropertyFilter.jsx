@@ -14,10 +14,16 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
     setError(null);
 
     try {
-      // Clean price before sending to API
+      // Clean and validate price
       const cleanedMaxPrice = maxPrice.replace(/[^0-9.-]+/g, '');
+      const maxPriceNum = Number(cleanedMaxPrice);
       
-      const response = await scrapeProperties(zipCode, cleanedMaxPrice);
+      if (isNaN(maxPriceNum) || maxPriceNum <= 0) {
+        throw new Error('Please enter a valid maximum price');
+      }
+      
+      console.log('Sending scrape request with:', { zipCode, maxPrice: maxPriceNum });
+      const response = await scrapeProperties(zipCode, maxPriceNum);
       console.log('Raw API response:', response);
 
       if (!response?.properties) {
@@ -29,39 +35,24 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
         response.properties : Object.values(response.properties);
       console.log('Initial properties array:', propertiesArray);
 
+      // Process and validate properties
       const processedProperties = propertiesArray
-        .filter(Boolean)
         .filter(property => {
-          // Only include properties with valid coordinates and active status
+          // Validate coordinates
           const lat = Number(property.latitude);
           const lng = Number(property.longitude);
-          const status = (property.status || '').toUpperCase();
           const isValid = !isNaN(lat) && !isNaN(lng) && 
                          lat >= -90 && lat <= 90 && 
                          lng >= -180 && lng <= 180;
           
-          // Skip properties that are not active (PENDING, SOLD, etc)
-          if (status === 'PENDING' || status === 'SOLD' || status === 'CLOSED') {
-            console.log('Property filtered out by status:', {
+          if (!isValid) {
+            console.log('Property filtered out due to invalid coordinates:', {
               property_id: property.property_id,
               street: property.street,
-              status: status
+              lat,
+              lng
             });
-            return false;
           }
-          
-          // Log all properties and their coordinate info
-          console.log('Property coordinate check:', { 
-            property_id: property.property_id,
-            street: property.street,
-            latitude: property.latitude,
-            longitude: property.longitude,
-            status: status,
-            parsed_lat: lat,
-            parsed_lng: lng,
-            isValid,
-            reason: isValid ? 'valid' : 'invalid coordinates'
-          });
           
           return isValid;
         })
@@ -110,7 +101,7 @@ const PropertyFilter = ({ onFilterChange, onPropertiesLoaded }) => {
       
       // Update filters first
       onFilterChange('zipCode', zipCode.trim());
-      onFilterChange('maxPrice', cleanedMaxPrice);
+      onFilterChange('maxPrice', maxPriceNum);
       
       // Then update properties
       onPropertiesLoaded(processedProperties);

@@ -16,10 +16,13 @@ export const fetchProperties = async () => {
 
 export const scrapeProperties = async (zipCode, maxPrice) => {
   try {
-    console.log('Sending scrape request:', { zipCode, maxPrice });
+    // Ensure maxPrice is an integer
+    const maxPriceInt = Math.floor(Number(maxPrice));
+    console.log('Sending scrape request:', { zipCode, maxPrice: maxPriceInt });
+    
     const response = await axios.post(`${API_URL}/scrape`, {
       zipCode,
-      maxPrice
+      maxPrice: maxPriceInt
     });
     console.log('Raw scraper response:', response.data);
     return response.data;

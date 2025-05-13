@@ -11,7 +11,6 @@ const PropertyCard = ({ property, onClick, isSelected }) => {
   useEffect(() => {
     // Debug logging
     console.log('Property data in PropertyCard:', property);
-    console.log('Property photos:', property?.photos);
     
     // Get the first valid photo URL
     const getPhotoUrl = () => {
@@ -21,7 +20,6 @@ const PropertyCard = ({ property, onClick, isSelected }) => {
       }
       
       const photos = property?.photos || [];
-      console.log('Processing photos:', photos);
       
       // Handle array of photos
       if (Array.isArray(photos) && photos.length > 0) {
